@@ -1,0 +1,399 @@
+#!/bin/bash
+
+# push-tmux-session - push-tmuxとtmuxを統合起動するラッパースクリプト
+#
+# Usage:
+#   push-tmux-session [OPTIONS] [SESSION_NAME]
+#
+# Options:
+#   -h, --help          Show this help message
+#   -d, --detach        Start in detached mode (don't attach to session)
+#   -k, --kill          Kill existing session before starting
+#   -r, --resume        Resume existing session (don't start listener if already running)
+#   -n, --name NAME     Specify device name (default: directory name or session name)
+#   -w, --window NUM    Target window number (default: 0)
+#   -p, --pane NUM      Target pane number (default: 0)
+#   --no-register       Skip device registration check
+
+set -e
+
+# デフォルト設定
+DETACH=false
+KILL_EXISTING=false
+RESUME=false
+DEVICE_NAME=""
+TARGET_WINDOW=""
+TARGET_PANE=""
+NO_REGISTER=false
+SESSION_NAME=""
+SCRIPT_NAME=$(basename "$0")
+
+# カラー出力
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# ログ関数
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+# ヘルプメッセージ
+show_help() {
+    cat << EOF
+push-tmux-session - push-tmuxとtmuxを統合起動するラッパースクリプト
+
+使い方:
+    $SCRIPT_NAME [オプション] [セッション名]
+
+オプション:
+    -h, --help          このヘルプを表示
+    -d, --detach        デタッチモードで起動（セッションにアタッチしない）
+    -k, --kill          既存セッションを削除してから起動
+    -r, --resume        既存セッションを再開（リスナーが起動済みなら再起動しない）
+    -n, --name NAME     デバイス名を指定（デフォルト: ディレクトリ名またはセッション名）
+    -w, --window NUM    ターゲットウィンドウ番号（デフォルト: 0）
+    -p, --pane NUM      ターゲットペイン番号（デフォルト: 0）
+    --no-register       デバイス登録チェックをスキップ
+
+引数:
+    SESSION_NAME        tmuxセッション名（省略時はディレクトリ名を使用）
+
+例:
+    # カレントディレクトリ名でセッション起動
+    $SCRIPT_NAME
+
+    # プロジェクト名でセッション起動
+    $SCRIPT_NAME my-project
+
+    # デバイス名を指定して起動
+    $SCRIPT_NAME -n project-dev my-project
+
+    # 既存セッションを削除して再起動
+    $SCRIPT_NAME -k my-project
+
+    # バックグラウンドで起動
+    $SCRIPT_NAME -d my-project
+
+    # 既存セッションに再接続
+    $SCRIPT_NAME -r my-project
+
+環境変数:
+    PUSHBULLET_TOKEN    Pushbullet APIトークン（必須）
+    DEVICE_NAME         デフォルトのデバイス名
+    TMUX_WINDOW_MAIN    メインウィンドウ番号（デフォルト: 1）
+    TMUX_WINDOW_LISTEN  リスナーウィンドウ番号（デフォルト: 0）
+
+EOF
+}
+
+# オプション解析
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -d|--detach)
+            DETACH=true
+            shift
+            ;;
+        -k|--kill)
+            KILL_EXISTING=true
+            shift
+            ;;
+        -r|--resume)
+            RESUME=true
+            shift
+            ;;
+        -n|--name)
+            DEVICE_NAME="$2"
+            shift 2
+            ;;
+        -w|--window)
+            TARGET_WINDOW="$2"
+            shift 2
+            ;;
+        -p|--pane)
+            TARGET_PANE="$2"
+            shift 2
+            ;;
+        --no-register)
+            NO_REGISTER=true
+            shift
+            ;;
+        -*)
+            log_error "不明なオプション: $1"
+            show_help
+            exit 1
+            ;;
+        *)
+            SESSION_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# セッション名の決定
+if [ -z "$SESSION_NAME" ]; then
+    # セッション名が指定されていない場合はディレクトリ名を使用
+    SESSION_NAME=$(basename "$(pwd)")
+fi
+
+# デバイス名の決定
+if [ -z "$DEVICE_NAME" ]; then
+    # デバイス名が指定されていない場合
+    if [ -n "$DEVICE_NAME" ]; then
+        # 環境変数から取得
+        DEVICE_NAME="$DEVICE_NAME"
+    else
+        # セッション名を使用
+        DEVICE_NAME="$SESSION_NAME"
+    fi
+fi
+
+# 環境変数チェック
+check_environment() {
+    # .envファイルが存在すれば読み込む
+    if [ -f .env ]; then
+        log_info ".envファイルを読み込みます"
+        export $(grep -v '^#' .env | xargs)
+    fi
+
+    # PUSHBULLET_TOKENチェック
+    if [ -z "$PUSHBULLET_TOKEN" ]; then
+        log_error "PUSHBULLET_TOKEN環境変数が設定されていません"
+        log_error ".envファイルまたは環境変数にPUSHBULLET_TOKENを設定してください"
+        exit 1
+    fi
+
+    # push-tmuxコマンドの存在チェック
+    if command -v mise &> /dev/null; then
+        # miseが利用可能な場合は mise exec を使用
+        PUSH_TMUX_CMD="mise exec -- push-tmux"
+    elif command -v push-tmux &> /dev/null; then
+        # 直接利用可能な場合
+        PUSH_TMUX_CMD="push-tmux"
+    else
+        log_error "push-tmuxコマンドが見つかりません"
+        log_error "push-tmuxをインストールしてください"
+        exit 1
+    fi
+
+    # tmuxコマンドの存在チェック
+    if ! command -v tmux &> /dev/null; then
+        log_error "tmuxコマンドが見つかりません"
+        log_error "tmuxをインストールしてください"
+        exit 1
+    fi
+}
+
+# デバイス登録チェック
+check_device_registration() {
+    if [ "$NO_REGISTER" = true ]; then
+        return 0
+    fi
+
+    log_info "デバイス '$DEVICE_NAME' の登録を確認中..."
+    
+    # デバイスリストを取得して確認
+    if $PUSH_TMUX_CMD list-devices 2>/dev/null | grep -q "$DEVICE_NAME"; then
+        log_info "デバイス '$DEVICE_NAME' は登録済みです"
+    else
+        log_warn "デバイス '$DEVICE_NAME' が未登録です"
+        log_info "デバイスを登録します..."
+        
+        # デバイス名を環境変数で指定して登録
+        DEVICE_NAME="$DEVICE_NAME" $PUSH_TMUX_CMD register --name "$DEVICE_NAME"
+        
+        if [ $? -eq 0 ]; then
+            log_info "デバイス登録が完了しました"
+        else
+            log_error "デバイス登録に失敗しました"
+            exit 1
+        fi
+    fi
+}
+
+# tmuxセッションの作成/確認
+setup_tmux_session() {
+    local session_exists=false
+    
+    # 既存セッションの確認
+    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        session_exists=true
+        
+        if [ "$KILL_EXISTING" = true ]; then
+            log_warn "既存のセッション '$SESSION_NAME' を削除します"
+            tmux kill-session -t "$SESSION_NAME"
+            session_exists=false
+        elif [ "$RESUME" = true ]; then
+            log_info "既存のセッション '$SESSION_NAME' を使用します"
+        else
+            log_warn "セッション '$SESSION_NAME' は既に存在します"
+            log_info "再接続する場合は -r オプションを使用してください"
+            log_info "削除して再作成する場合は -k オプションを使用してください"
+            exit 1
+        fi
+    fi
+    
+    # 新規セッションの作成
+    if [ "$session_exists" = false ]; then
+        log_info "新しいtmuxセッション '$SESSION_NAME' を作成します"
+        
+        # セッションを作成（デタッチモード）
+        tmux new-session -d -s "$SESSION_NAME" -n "listener"
+        
+        # メインウィンドウを作成
+        tmux new-window -t "$SESSION_NAME:1" -n "main"
+        
+        # オプション: 追加ウィンドウを作成
+        if [ -n "${TMUX_CREATE_LOGS_WINDOW}" ]; then
+            tmux new-window -t "$SESSION_NAME:2" -n "logs"
+        fi
+        
+        if [ -n "${TMUX_CREATE_TEST_WINDOW}" ]; then
+            tmux new-window -t "$SESSION_NAME:3" -n "test"
+        fi
+        
+        # デフォルトウィンドウをmainに設定
+        tmux select-window -t "$SESSION_NAME:${TMUX_WINDOW_MAIN:-1}"
+    fi
+}
+
+# push-tmuxリスナーの起動
+start_listener() {
+    local listener_window="${TMUX_WINDOW_LISTEN:-0}"
+    
+    # RESUMEモードで既にリスナーが動作している場合はスキップ
+    if [ "$RESUME" = true ]; then
+        # リスナーウィンドウでプロセスが動作しているか確認
+        local pane_pid=$(tmux list-panes -t "$SESSION_NAME:$listener_window" -F "#{pane_pid}" 2>/dev/null | head -1)
+        if [ -n "$pane_pid" ]; then
+            if ps -p "$pane_pid" > /dev/null 2>&1; then
+                # プロセスが実行中か確認
+                local cmd=$(ps -p "$pane_pid" -o comm= 2>/dev/null)
+                if [[ "$cmd" == *"python"* ]] || [[ "$cmd" == *"push-tmux"* ]]; then
+                    log_info "リスナーは既に起動しています（PID: $pane_pid）"
+                    return 0
+                fi
+            fi
+        fi
+    fi
+    
+    log_info "push-tmuxリスナーを起動します（デバイス: $DEVICE_NAME）"
+    
+    # リスナーウィンドウでpush-tmux listenを実行
+    tmux send-keys -t "$SESSION_NAME:$listener_window" C-c C-m  # 既存のコマンドをクリア
+    sleep 0.5
+    
+    # 環境変数を設定してリスナーを起動
+    local listen_cmd="DEVICE_NAME='$DEVICE_NAME' $PUSH_TMUX_CMD listen"
+    
+    # ターゲットウィンドウ/ペインが指定されている場合
+    if [ -n "$TARGET_WINDOW" ] || [ -n "$TARGET_PANE" ]; then
+        # config.tomlを生成
+        cat > config.toml << EOF
+[tmux]
+target_session = "current"
+EOF
+        if [ -n "$TARGET_WINDOW" ]; then
+            echo "target_window = \"$TARGET_WINDOW\"" >> config.toml
+        fi
+        if [ -n "$TARGET_PANE" ]; then
+            echo "target_pane = \"$TARGET_PANE\"" >> config.toml
+        fi
+        
+        log_info "config.tomlを生成しました（window: $TARGET_WINDOW, pane: $TARGET_PANE）"
+    fi
+    
+    tmux send-keys -t "$SESSION_NAME:$listener_window" "$listen_cmd" C-m
+    
+    # リスナーの起動を確認（少し待機）
+    sleep 2
+    
+    # リスナーが起動したか確認
+    local pane_text=$(tmux capture-pane -t "$SESSION_NAME:$listener_window" -p | tail -5)
+    if echo "$pane_text" | grep -q "Pushbulletのストリームを開始します"; then
+        log_info "リスナーが正常に起動しました"
+    elif echo "$pane_text" | grep -q "エラー"; then
+        log_error "リスナーの起動に失敗しました"
+        log_error "詳細: $pane_text"
+        exit 1
+    fi
+}
+
+# セッションにアタッチ
+attach_session() {
+    if [ "$DETACH" = false ]; then
+        # tmux内から実行されている場合
+        if [ -n "$TMUX" ]; then
+            log_info "既にtmux内にいるため、switch-clientを使用します"
+            tmux switch-client -t "$SESSION_NAME"
+        else
+            log_info "セッション '$SESSION_NAME' にアタッチします"
+            tmux attach-session -t "$SESSION_NAME"
+        fi
+    else
+        log_info "セッション '$SESSION_NAME' をバックグラウンドで起動しました"
+        log_info "アタッチするには: tmux attach -t $SESSION_NAME"
+    fi
+}
+
+# ステータス表示
+show_status() {
+    echo ""
+    echo -e "${BLUE}===== セッション情報 =====${NC}"
+    echo -e "セッション名: ${GREEN}$SESSION_NAME${NC}"
+    echo -e "デバイス名: ${GREEN}$DEVICE_NAME${NC}"
+    echo ""
+    echo -e "${BLUE}===== ウィンドウ構成 =====${NC}"
+    tmux list-windows -t "$SESSION_NAME" -F "  #I: #W (#P panes)" 2>/dev/null || true
+    echo ""
+    echo -e "${BLUE}===== 便利なコマンド =====${NC}"
+    echo "  セッションにアタッチ: tmux attach -t $SESSION_NAME"
+    echo "  セッションから離脱: Ctrl-b d"
+    echo "  ウィンドウ切り替え: Ctrl-b [0-9]"
+    echo "  セッション終了: tmux kill-session -t $SESSION_NAME"
+    echo "  メッセージ送信テスト: $PUSH_TMUX_CMD send-key 'test message'"
+    echo ""
+}
+
+# メイン処理
+main() {
+    log_info "push-tmux-session を開始します"
+    
+    # 環境チェック
+    check_environment
+    
+    # デバイス登録チェック
+    check_device_registration
+    
+    # tmuxセッションのセットアップ
+    setup_tmux_session
+    
+    # リスナーの起動
+    start_listener
+    
+    # ステータス表示
+    show_status
+    
+    # セッションにアタッチ
+    attach_session
+}
+
+# トラップ設定（エラー時のクリーンアップ）
+trap 'log_error "エラーが発生しました（行: $LINENO）"' ERR
+
+# メイン処理実行
+main "$@"

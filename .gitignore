@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# mise
+.mise/
+
+# uv
+uv.lock
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Config files (may contain API keys)
+config.toml
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+htmlcov/
