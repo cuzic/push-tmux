@@ -107,12 +107,14 @@ class TestConfigManagement:
         assert config_file.exists()
     
     def test_load_config_invalid_toml(self, isolated_env):
-        """無効なTOMLファイルの処理"""
+        """無効なTOMLファイルの処理（デフォルト設定を返す）"""
         config_file = Path(isolated_env) / "config.toml"
         config_file.write_text("invalid toml content {[}")
         
-        with pytest.raises(Exception):  # TOMLデコードエラー
-            load_config()
+        # 無効なTOMLファイルの場合はデフォルト設定を返す
+        config = load_config()
+        assert 'tmux' in config
+        assert config['tmux']['target_session'] == 'current'
     
     def test_config_unicode_support(self, isolated_env):
         """Unicode文字を含む設定の保存と読み込み"""
