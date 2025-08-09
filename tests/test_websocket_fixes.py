@@ -308,10 +308,10 @@ class TestMessageProcessing:
         
         listener.on_push = on_push
         
-        # 有効なpushメッセージ
+        # 有効なpushメッセージ（idenフィールドを追加）
         valid_push = json.dumps({
             "type": "push",
-            "push": {"title": "Test", "body": "Message"}
+            "push": {"iden": "test123", "title": "Test", "body": "Message"}
         })
         
         with patch.object(listener.websocket, 'recv', new_callable=AsyncMock) as mock_recv:
@@ -370,10 +370,11 @@ class TestIntegration:
     """統合テスト"""
     
     @pytest.mark.asyncio
-    @pytest.mark.skipif(not os.getenv('PUSHBULLET_TOKEN'), reason="PUSHBULLET_TOKEN not set")
     async def test_short_connection(self):
         """短時間の接続テスト"""
         api_key = os.getenv('PUSHBULLET_TOKEN')
+        if not api_key or api_key == 'test_token_12345':
+            pytest.skip("Real PUSHBULLET_TOKEN not set")
         
         connected = False
         errors = []

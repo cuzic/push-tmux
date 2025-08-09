@@ -87,27 +87,27 @@ class TestSendToTmux:
         assert first_call[0][4] == "custom message"
     
     @pytest.mark.asyncio
-    async def test_send_to_tmux_no_tmux_env(self, mock_subprocess, mock_env, capsys):
+    async def test_send_to_tmux_no_tmux_env(self, mock_subprocess, capsys):
         """TMUX環境変数が設定されていない場合"""
-        mock_env(TMUX=None)
-        
-        config = {
-            "tmux": {
-                "target_session": None,
-                "target_window": "0",
-                "target_pane": "0"
+        # TMUX環境変数を削除
+        with patch.dict(os.environ, {}, clear=True):
+            config = {
+                "tmux": {
+                    "target_session": None,
+                    "target_window": "0",
+                    "target_pane": "0"
+                }
             }
-        }
-        
-        await send_to_tmux(config, "test message")
-        
-        # tmux send-keysが呼ばれない
-        mock_subprocess.assert_not_called()
-        
-        # エラーメッセージの確認
-        captured = capsys.readouterr()
-        assert "エラー: tmuxセッション" in captured.err
-        assert "config.toml" in captured.err
+            
+            await send_to_tmux(config, "test message")
+            
+            # tmux send-keysが呼ばれない
+            mock_subprocess.assert_not_called()
+            
+            # エラーメッセージの確認
+            captured = capsys.readouterr()
+            assert "エラー: tmuxセッション" in captured.err
+            assert "config.toml" in captured.err
     
     @pytest.mark.asyncio
     async def test_send_to_tmux_command_not_found(self, capsys):

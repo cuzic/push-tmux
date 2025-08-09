@@ -11,15 +11,13 @@ from push_tmux import get_device_name, load_config, save_config
 class TestDeviceName:
     """get_device_name関数のテスト"""
     
-    def test_get_device_name_from_env(self, mock_env):
+    def test_get_device_name_from_env(self):
         """環境変数DEVICE_NAMEが設定されている場合"""
-        mock_env(DEVICE_NAME="my-custom-device")
-        assert get_device_name() == "my-custom-device"
+        with patch.dict(os.environ, {'DEVICE_NAME': 'my-custom-device'}):
+            assert get_device_name() == "my-custom-device"
     
-    def test_get_device_name_from_directory(self, mock_env, tmp_path):
+    def test_get_device_name_from_directory(self, tmp_path):
         """環境変数が設定されていない場合はディレクトリ名を使用"""
-        mock_env(DEVICE_NAME=None)
-        
         # 一時ディレクトリに移動
         test_dir = tmp_path / "test-project"
         test_dir.mkdir()
@@ -27,21 +25,22 @@ class TestDeviceName:
         
         try:
             os.chdir(test_dir)
-            assert get_device_name() == "test-project"
+            # DEVICE_NAMEを削除してディレクトリ名を使用させる
+            with patch.dict(os.environ, {}, clear=True):
+                assert get_device_name() == "test-project"
         finally:
             os.chdir(original_cwd)
     
-    def test_get_device_name_precedence(self, mock_env, tmp_path):
+    def test_get_device_name_precedence(self, tmp_path):
         """環境変数が優先される"""
-        mock_env(DEVICE_NAME="env-device")
-        
         test_dir = tmp_path / "dir-device"
         test_dir.mkdir()
         original_cwd = os.getcwd()
         
         try:
             os.chdir(test_dir)
-            assert get_device_name() == "env-device"
+            with patch.dict(os.environ, {'DEVICE_NAME': 'env-device'}):
+                assert get_device_name() == "env-device"
         finally:
             os.chdir(original_cwd)
 

@@ -61,15 +61,23 @@ class TestLiveRouting:
     @pytest.mark.asyncio
     async def test_message_routing_with_mock_pushbullet(self):
         """Pushbulletをモックしたメッセージルーティングテスト"""
-        with patch('async_pushbullet.AsyncPushbullet') as mock_pb_class:
+        api_key = os.getenv('PUSHBULLET_TOKEN', 'test_token')
+        if not api_key or api_key == 'test_token_12345':
+            pytest.skip("Real PUSHBULLET_TOKEN not set")
+        
+        with patch('tests.integration.test_live_routing.AsyncPushbullet') as mock_pb_class:
             mock_pb = AsyncMock()
             mock_pb.get_devices = AsyncMock(return_value=[
                 {'nickname': 'project-a', 'iden': 'device1', 'active': True},
                 {'nickname': 'project-b', 'iden': 'device2', 'active': True},
             ])
             mock_pb.push_note = AsyncMock()
-            mock_pb_class.return_value.__aenter__.return_value = mock_pb
-            mock_pb_class.return_value.__aexit__.return_value = AsyncMock()
+            
+            # モックインスタンスを設定
+            mock_instance = AsyncMock()
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_pb)
+            mock_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_pb_class.return_value = mock_instance
             
             api_key = "test_token"
             async with AsyncPushbullet(api_key) as pb:

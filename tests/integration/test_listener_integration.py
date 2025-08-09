@@ -63,15 +63,16 @@ class TestListenerIntegration:
         async def on_push(push):
             received_messages.append(push)
         
-        with patch('websockets.connect') as mock_connect:
+        with patch('websockets.connect', new_callable=AsyncMock) as mock_connect:
             mock_ws = AsyncMock()
             mock_ws.recv = AsyncMock(side_effect=[
-                '{"type": "push", "push": {"type": "note", "title": "Test", "body": "Message"}}',
+                '{"type": "push", "push": {"iden": "test123", "type": "note", "title": "Test", "body": "Message"}}',
                 '{"type": "nop"}',
                 asyncio.CancelledError()
             ])
             mock_ws.close = AsyncMock()
-            mock_connect.return_value.__aenter__.return_value = mock_ws
+            # websockets.connectは非同期でWebSocketを返す
+            mock_connect.return_value = mock_ws
             
             # AsyncPushbulletのモック
             with patch('async_pushbullet.AsyncPushbullet') as mock_pb_class:

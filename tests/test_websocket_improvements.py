@@ -142,6 +142,7 @@ class TestWebSocketImprovements:
         valid_push = {
             "type": "push",
             "push": {
+                "iden": "test123",
                 "type": "note",
                 "title": "Test",
                 "body": "Test message"
@@ -254,8 +255,8 @@ class TestWebSocketImprovements:
 async def test_integration_short_run():
     """短時間の統合テスト"""
     api_key = os.getenv('PUSHBULLET_TOKEN')
-    if not api_key:
-        pytest.skip("PUSHBULLET_TOKEN not set")
+    if not api_key or api_key == 'test_token_12345':
+        pytest.skip("Real PUSHBULLET_TOKEN not set")
     
     # 統計情報
     stats = {
