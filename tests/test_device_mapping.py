@@ -7,9 +7,8 @@ import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 import os
 
-# パスを追加
+# パスはconftest.pyで設定済み
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from push_tmux import send_to_tmux
 

@@ -4,8 +4,8 @@ WebSocket接続の安定性を向上
 """
 import asyncio
 import json
-import time
 import logging
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any, Callable
 import aiohttp
 import websockets
@@ -121,7 +121,6 @@ class AsyncPushbulletListener:
     
     # 定数
     WEBSOCKET_TIMEOUT = 45  # WebSocketタイムアウト（秒） - nopは約30秒間隔なので45秒に設定
-    PING_INTERVAL = 30      # ping間隔（秒） - 使用しないが互換性のため残す
     RECONNECT_DELAY = 5     # 再接続待機時間（秒）
     MAX_RECONNECT_ATTEMPTS = 5  # 最大再接続試行回数 - 過剰な再接続を防ぐため減らす
     NOP_TIMEOUT = 90        # nopメッセージのタイムアウト（秒）
@@ -133,7 +132,7 @@ class AsyncPushbulletListener:
         self.websocket = None
         self.running = False
         self.pb_client = AsyncPushbullet(api_key)
-        self.last_push_time = time.time()
+        self.last_push_time = datetime.now(timezone.utc).timestamp()
         self.debug = debug
         self.reconnect_attempts = 0
         self.processed_push_idens = set()  # 処理済みのpush idenを記録
@@ -234,7 +233,7 @@ class AsyncPushbulletListener:
     
     async def _receive_messages(self):
         """メッセージ受信処理"""
-        last_nop_time = time.time()
+        last_nop_time = datetime.now(timezone.utc)
         
         while self.running and self.websocket:
             try:
@@ -252,7 +251,7 @@ class AsyncPushbulletListener:
                 
                 # nop（キープアライブ）の処理
                 if message_type == "nop":
-                    last_nop_time = time.time()
+                    last_nop_time = datetime.now(timezone.utc)
                     self.logger.debug("キープアライブ（nop）を受信")
                     continue
                 
@@ -296,7 +295,7 @@ class AsyncPushbulletListener:
                     
             except asyncio.TimeoutError:
                 # タイムアウトチェック
-                elapsed = time.time() - last_nop_time
+                elapsed = (datetime.now(timezone.utc) - last_nop_time).total_seconds()
                 if elapsed > self.NOP_TIMEOUT:
                     self.logger.warning(f"nopメッセージが{elapsed:.0f}秒間受信されていません")
                     # 接続をリセット

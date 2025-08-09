@@ -11,8 +11,10 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from click.testing import CliRunner
 
-# プロジェクトのルートディレクトリをパスに追加
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# プロジェクトのルートディレクトリをパスに追加（一元化）
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # テスト用のPushbullet APIトークンを設定
 @pytest.fixture(autouse=True)

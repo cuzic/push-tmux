@@ -38,11 +38,11 @@ class TestConfigFunctions:
         config_data = {"tmux": {"target_session": "test"}}
         
         m = mock_open()
-        with patch('builtins.open', m):
+        with patch('pathlib.Path.open', m):
             save_config(config_data)
             
         # ファイルが開かれた
-        m.assert_called_once_with('config.toml', 'w', encoding='utf-8')
+        m.assert_called_once_with('w', encoding='utf-8')
         
         # データが書き込まれた
         handle = m()

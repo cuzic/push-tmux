@@ -5,11 +5,13 @@ Pushbulletのメッセージをtmuxに送信するCLIツール（非同期版）
 import asyncio
 import click
 import os
-import time
 import toml
 import logging
+import logging.config
 import sys
 from datetime import datetime
+from pathlib import Path
+from collections import ChainMap
 from dotenv import load_dotenv
 from async_pushbullet import AsyncPushbullet, AsyncPushbulletListener
 import questionary
@@ -19,7 +21,7 @@ import aiohttp
 load_dotenv()
 
 # 設定ファイルのパスを定義
-CONFIG_FILE = "config.toml"
+CONFIG_FILE = Path("config.toml")
 
 def load_config():
     """
@@ -51,21 +53,25 @@ def load_config():
         }
     }
     
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+    config_path = Path(CONFIG_FILE) if isinstance(CONFIG_FILE, str) else CONFIG_FILE
+    if config_path.exists():
+        with config_path.open('r', encoding='utf-8') as f:
             user_config = toml.load(f)
         
-        # デフォルト設定とユーザー設定をマージ
-        def merge_dict(default, user):
-            result = default.copy()
-            for key, value in user.items():
-                if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = merge_dict(result[key], value)
-                else:
-                    result[key] = value
-            return result
+        # デフォルト設定とユーザー設定をマージ (ChainMapを使用)
+        merged_config = {}
+        for key in default_config:
+            if key in user_config and isinstance(default_config[key], dict) and isinstance(user_config[key], dict):
+                merged_config[key] = dict(ChainMap(user_config[key], default_config[key]))
+            else:
+                merged_config[key] = user_config.get(key, default_config[key])
         
-        return merge_dict(default_config, user_config)
+        # ユーザー設定にのみ存在するキーを追加
+        for key in user_config:
+            if key not in merged_config:
+                merged_config[key] = user_config[key]
+                
+        return merged_config
     
     return default_config
 
@@ -73,64 +79,73 @@ def save_config(config):
     """
     設定をTOML形式で設定ファイルに書き込む
     """
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+    config_path = Path(CONFIG_FILE) if isinstance(CONFIG_FILE, str) else CONFIG_FILE
+    with config_path.open('w', encoding='utf-8') as f:
         toml.dump(config, f)
 
 def setup_logging(config, is_daemon=False):
     """
-    ログ設定のセットアップ
+    ログ設定のセットアップ (logging.config 使用)
     """
     daemon_config = config.get('daemon', {})
     logging_config = daemon_config.get('logging', {})
     
     # ログレベル設定
     log_level = logging_config.get('log_level', 'INFO').upper()
-    level = getattr(logging, log_level, logging.INFO)
-    
-    # ログフォーマット
-    if is_daemon:
-        formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)s] [Daemon] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-    else:
-        formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-    
-    # ハンドラー設定
-    handlers = []
-    
-    # ファイルログ
     log_file = logging_config.get('log_file', '')
+    
+    # ログ設定辞書を構築
+    config_dict = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(message)s',
+                'datefmt': '%Y-%m-%d %H:%M:%S'
+            },
+            'daemon': {
+                'format': '%(asctime)s [%(levelname)s] [Daemon] %(message)s',
+                'datefmt': '%Y-%m-%d %H:%M:%S'
+            }
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'level': log_level,
+                'formatter': 'daemon' if is_daemon else 'standard',
+                'stream': 'ext://sys.stdout'
+            }
+        },
+        'root': {
+            'level': log_level,
+            'handlers': ['console']
+        }
+    }
+    
+    # ファイルハンドラーを追加
     if log_file and log_file.strip():
-        try:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
-            file_handler.setFormatter(formatter)
-            handlers.append(file_handler)
-        except Exception as e:
+        config_dict['handlers']['file'] = {
+            'class': 'logging.FileHandler',
+            'level': log_level,
+            'formatter': 'daemon' if is_daemon else 'standard',
+            'filename': log_file,
+            'encoding': 'utf-8'
+        }
+        config_dict['root']['handlers'].append('file')
+    
+    try:
+        logging.config.dictConfig(config_dict)
+        return logging.getLogger()
+    except Exception as e:
+        # フォールバック: 基本的なログ設定
+        logging.basicConfig(
+            level=getattr(logging, log_level, logging.INFO),
+            format='%(asctime)s [%(levelname)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        if log_file:
             click.echo(f"警告: ログファイル '{log_file}' を開けません: {e}", err=True)
-    
-    # コンソールログ（ファイルログがない場合、またはdaemonモード）
-    if not handlers or is_daemon:
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        handlers.append(console_handler)
-    
-    # ルートロガー設定
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
-    
-    # 既存のハンドラーをクリア
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-    
-    # 新しいハンドラーを追加
-    for handler in handlers:
-        root_logger.addHandler(handler)
-    
-    return root_logger
+        return logging.getLogger()
 
 
 def log_daemon_event(event_type, message, **kwargs):
@@ -161,7 +176,7 @@ def get_device_name():
     """
     環境変数またはディレクトリ名からデバイス名を取得する
     """
-    return os.getenv('DEVICE_NAME', os.path.basename(os.getcwd()))
+    return os.getenv('DEVICE_NAME', Path.cwd().name)
 
 async def send_to_tmux(config, message, device_name=None):
     """
@@ -274,7 +289,7 @@ async def send_to_tmux(config, message, device_name=None):
                 parts = tmux_env.split(',')
                 if parts:
                     socket_path = parts[0]
-                    session_name = os.path.basename(socket_path)
+                    session_name = Path(socket_path).name
                     target_session = session_name if session_name else 'default'
         else:
             # tmux外で実行されている場合、デバイス名をセッション名として使用を試みる
