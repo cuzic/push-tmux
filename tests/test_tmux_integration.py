@@ -106,7 +106,7 @@ class TestSendToTmux:
         
         # エラーメッセージの確認
         captured = capsys.readouterr()
-        assert "エラー: スクリプトがtmuxセッション内で実行されていません" in captured.err
+        assert "エラー: tmuxセッション" in captured.err
         assert "config.toml" in captured.err
     
     @pytest.mark.asyncio

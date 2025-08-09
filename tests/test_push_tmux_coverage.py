@@ -130,7 +130,7 @@ class TestSendToTmux:
                 error_calls = [call for call in mock_echo.call_args_list 
                               if 'エラー' in str(call)]
                 assert len(error_calls) > 0
-                assert any('tmuxセッション内で実行されていません' in str(call) 
+                assert any('tmuxセッション' in str(call) 
                           for call in error_calls)
 
 

@@ -73,7 +73,11 @@ push-tmux daemon
 
 ### デフォルト動作
 
-- **ターゲットセッション**: tmux内で実行時は現在のセッション、それ以外は`config.toml`で指定
+- **ターゲットセッション**: 
+  1. `config.toml`の`[tmux].target_session`設定（最優先）
+  2. `[device_mapping]`セクションのマッピング設定
+  3. デバイス名と同じtmuxセッション名（デフォルト）
+  4. 現在のtmuxセッション（tmux内で実行時）
 - **ターゲットウィンドウ**: セッションの最初のウィンドウ（インデックス順、デフォルト）
 - **ターゲットペイン**: ウィンドウの最初のペイン（インデックス順、デフォルト）
 
@@ -95,9 +99,14 @@ DEVICE_NAME=my-project
 
 ```toml
 [tmux]
-# target_session = "main"   # 省略時は現在のセッション
+# target_session = "main"   # 省略時はデバイス名と同じセッション名
 # target_window = "1"       # 省略時は最初のウィンドウ（デフォルト）
 # target_pane = "0"         # 省略時は最初のペイン（デフォルト）
+
+[device_mapping]
+# デバイス名とtmuxセッションのマッピング
+"project-a" = "dev-session"    # project-aデバイス → dev-sessionセッション
+"1on1-ver2" = "work"          # 1on1-ver2デバイス → workセッション
 
 [daemon]
 reload_interval = 1.0       # ファイル監視間隔（秒）
@@ -182,6 +191,27 @@ echo "DEVICE_NAME=project-b" > .env
 push-tmux register
 tmux new -s project-b
 push-tmux daemon  # project-b宛のメッセージのみ受信（自動再起動付き）
+```
+
+### デバイスマッピングの使用例
+
+異なるデバイス名とtmuxセッション名を使いたい場合：
+
+```toml
+# config.toml
+[device_mapping]
+"mobile-dev" = "frontend"      # mobile-devデバイス → frontendセッション
+"backend-api" = "backend"       # backend-apiデバイス → backendセッション
+"db-admin" = "database"         # db-adminデバイス → databaseセッション
+```
+
+```bash
+# frontendセッションで作業
+tmux new -s frontend
+cd ~/projects/mobile-app
+export DEVICE_NAME=mobile-dev
+push-tmux register
+push-tmux listen  # mobile-dev宛のメッセージをfrontendセッションで受信
 ```
 
 ### 自動ルーティングモード（NEW!）

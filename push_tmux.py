@@ -177,33 +177,64 @@ async def send_to_tmux(config, message, device_name=None):
     window_setting = tmux_config.get('target_window')
     pane_setting = tmux_config.get('target_pane')
     
+    # デバイスマッピング設定を取得
+    device_mapping = config.get('device_mapping', {})
+    
     # ターゲットセッションを決定
     target_session = None
     
-    # 優先順位: 1. config設定 2. device_name 3. 現在のセッション
-    # configに明示的な設定がある場合はそれを優先
+    # 優先順位: 
+    # 1. tmux.target_sessionの明示的な設定
+    # 2. device_mappingの設定
+    # 3. デバイス名と同じセッション名
+    # 4. 現在のセッション（tmux内で実行時）
+    
+    # 1. configに明示的な設定がある場合はそれを優先
     if session_setting and session_setting != 'current':
         target_session = session_setting
     
-    # config設定がない場合、device_nameを使用
+    # 2. device_nameがある場合の処理
     elif device_name:
-        # デバイス名と同じ名前のtmuxセッションが存在するか確認
-        try:
-            result = await asyncio.create_subprocess_exec(
-                'tmux', 'has-session', '-t', device_name,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            await result.communicate()
-            if result.returncode == 0:
-                target_session = device_name
-                click.echo(f"デバイス名に対応するtmuxセッション '{device_name}' を使用します。")
-            else:
-                click.echo(f"警告: tmuxセッション '{device_name}' が存在しません。フォールバックします。")
-        except:
-            pass
+        # まずdevice_mappingを確認
+        if device_name in device_mapping:
+            mapped_session = device_mapping[device_name]
+            # マップされたセッションが存在するか確認
+            try:
+                result = await asyncio.create_subprocess_exec(
+                    'tmux', 'has-session', '-t', mapped_session,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await result.communicate()
+                if result.returncode == 0:
+                    target_session = mapped_session
+                    click.echo(f"デバイス '{device_name}' のマッピング設定に従い、tmuxセッション '{mapped_session}' を使用します。")
+                else:
+                    click.echo(f"警告: マッピングされたtmuxセッション '{mapped_session}' が存在しません。デフォルトに戻ります。")
+            except:
+                pass
+        
+        # マッピングがない、またはマップされたセッションが存在しない場合
+        if target_session is None:
+            # デバイス名と同じ名前のtmuxセッションが存在するか確認
+            try:
+                result = await asyncio.create_subprocess_exec(
+                    'tmux', 'has-session', '-t', device_name,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await result.communicate()
+                if result.returncode == 0:
+                    target_session = device_name
+                    click.echo(f"デバイス名と同じtmuxセッション '{device_name}' を使用します。")
+                else:
+                    # デバイス名と同じセッションが存在しない場合の警告
+                    if device_name not in device_mapping:
+                        click.echo(f"警告: tmuxセッション '{device_name}' が存在しません。")
+            except:
+                pass
     
-    # configもdevice_nameもない、またはdevice_nameでセッションが見つからなかった場合
+    # 3. まだターゲットセッションが決まっていない場合、現在のセッションを使用
     if target_session is None:
         # TMUX環境変数から現在のセッション情報を取得
         tmux_env = os.environ.get('TMUX')
@@ -217,6 +248,7 @@ async def send_to_tmux(config, message, device_name=None):
                 )
                 stdout, _ = await result.communicate()
                 target_session = stdout.decode().strip()
+                click.echo(f"現在のtmuxセッション '{target_session}' を使用します。")
             except:
                 # フォールバック
                 parts = tmux_env.split(',')
@@ -225,8 +257,16 @@ async def send_to_tmux(config, message, device_name=None):
                     session_name = os.path.basename(socket_path)
                     target_session = session_name if session_name else 'default'
         else:
-            click.echo("エラー: スクリプトがtmuxセッション内で実行されていません。", err=True)
-            click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
+            # tmux外で実行されている場合、デバイス名をセッション名として使用を試みる
+            if device_name:
+                click.echo(f"エラー: tmuxセッション '{device_name}' が見つかりません。", err=True)
+                click.echo(f"以下のいずれかの対処を行ってください:", err=True)
+                click.echo(f"  1. tmuxセッション '{device_name}' を作成する", err=True)
+                click.echo(f"  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
+                click.echo(f"  3. config.tomlの[tmux].target_sessionを明示的に設定する", err=True)
+            else:
+                click.echo("エラー: tmuxセッションが見つかりません。", err=True)
+                click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
             return
     
     # デフォルト値の設定

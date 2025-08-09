@@ -3,9 +3,17 @@
 
 [tmux]
 # tmux ターゲット設定
-# target_session = "current"  # 省略時は現在のセッション、または特定のセッション名を指定
+# target_session = "current"  # 省略時はデバイス名と同じセッション名、または特定のセッション名を指定
 # target_window = "first"     # 省略時は最初のウィンドウ（デフォルト）、または特定のウィンドウインデックスを指定
 # target_pane = "first"       # 省略時は最初のペイン（デフォルト）、または特定のペインインデックスを指定
+
+[device_mapping]
+# デバイス名とtmuxセッションのマッピング設定
+# デバイス名をキーとして、対応するtmuxセッション名を指定
+# 例:
+# "project-a" = "dev-session"        # project-aデバイスのメッセージをdev-sessionに送信
+# "mobile-app" = "mobile-session"    # mobile-appデバイスのメッセージをmobile-sessionに送信
+# "1on1-ver2" = "work"               # 1on1-ver2デバイスのメッセージをworkセッションに送信
 
 [daemon]
 # デーモンモード設定

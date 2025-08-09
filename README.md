@@ -73,7 +73,11 @@ Send a message to the "1on1-ver2" device from another device (e.g., smartphone) 
 
 ### Default Behavior
 
-- **Target Session**: Current session when run inside tmux, otherwise specified in `config.toml`
+- **Target Session**: 
+  1. Explicit setting in `config.toml` `[tmux].target_session` (highest priority)
+  2. Mapping configuration in `[device_mapping]` section
+  3. tmux session with same name as device name (default)
+  4. Current tmux session (when run inside tmux)
 - **Target Window**: First window in the session (by index order, default)
 - **Target Pane**: First pane in the window (by index order, default)
 
@@ -95,9 +99,14 @@ Customize detailed behavior with the configuration file. See `config-example.tom
 
 ```toml
 [tmux]
-# target_session = "main"   # Defaults to current session if omitted
+# target_session = "main"   # Defaults to session with same name as device
 # target_window = "1"       # Defaults to first window if omitted
 # target_pane = "0"         # Defaults to first pane if omitted
+
+[device_mapping]
+# Device name to tmux session mapping
+"project-a" = "dev-session"    # project-a device → dev-session
+"1on1-ver2" = "work"          # 1on1-ver2 device → work session
 
 [daemon]
 reload_interval = 1.0       # File watch interval (seconds)
@@ -182,6 +191,27 @@ echo "DEVICE_NAME=project-b" > .env
 push-tmux register
 tmux new -s project-b
 push-tmux daemon  # Receives only project-b messages (with auto-restart)
+```
+
+### Device Mapping Example
+
+When you want to use different device names and tmux session names:
+
+```toml
+# config.toml
+[device_mapping]
+"mobile-dev" = "frontend"      # mobile-dev device → frontend session
+"backend-api" = "backend"       # backend-api device → backend session
+"db-admin" = "database"         # db-admin device → database session
+```
+
+```bash
+# Working in frontend session
+tmux new -s frontend
+cd ~/projects/mobile-app
+export DEVICE_NAME=mobile-dev
+push-tmux register
+push-tmux listen  # Receives mobile-dev messages in frontend session
 ```
 
 ### Auto-routing Mode (NEW!)
