@@ -75,6 +75,12 @@ uv run pytest tests/test_device_targeting.py::test_device_targeting_logic
 # Run tests in parallel
 uv run pytest -n auto
 
+# Run unit tests only (skip integration tests)
+uv run pytest -m "not integration"
+
+# Run integration tests only
+uv run pytest tests/integration/ -v
+
 # Alternative: direct pytest (requires manual environment activation)
 pytest
 ```
