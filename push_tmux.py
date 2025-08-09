@@ -41,9 +41,14 @@ def get_device_name():
     """
     return os.getenv('DEVICE_NAME', os.path.basename(os.getcwd()))
 
-async def send_to_tmux(config, message):
+async def send_to_tmux(config, message, device_name=None):
     """
     tmuxにメッセージとEnterキーを送信する
+    
+    Args:
+        config: 設定辞書
+        message: 送信するメッセージ
+        device_name: デバイス名（tmuxセッション名として使用）
     """
     tmux_config = config.get('tmux', {})
     session_setting = tmux_config.get('target_session')
@@ -52,7 +57,32 @@ async def send_to_tmux(config, message):
     
     # ターゲットセッションを決定
     target_session = None
-    if session_setting is None or session_setting == 'current':
+    
+    # 優先順位: 1. config設定 2. device_name 3. 現在のセッション
+    # configに明示的な設定がある場合はそれを優先
+    if session_setting and session_setting != 'current':
+        target_session = session_setting
+    
+    # config設定がない場合、device_nameを使用
+    elif device_name:
+        # デバイス名と同じ名前のtmuxセッションが存在するか確認
+        try:
+            result = await asyncio.create_subprocess_exec(
+                'tmux', 'has-session', '-t', device_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await result.communicate()
+            if result.returncode == 0:
+                target_session = device_name
+                click.echo(f"デバイス名に対応するtmuxセッション '{device_name}' を使用します。")
+            else:
+                click.echo(f"警告: tmuxセッション '{device_name}' が存在しません。フォールバックします。")
+        except:
+            pass
+    
+    # configもdevice_nameもない、またはdevice_nameでセッションが見つからなかった場合
+    if target_session is None:
         # TMUX環境変数から現在のセッション情報を取得
         tmux_env = os.environ.get('TMUX')
         if tmux_env:
@@ -76,8 +106,6 @@ async def send_to_tmux(config, message):
             click.echo("エラー: スクリプトがtmuxセッション内で実行されていません。", err=True)
             click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
             return
-    else:
-        target_session = session_setting
     
     # デフォルト値の設定
     # ウィンドウ: 設定がない場合は実際の最初のウィンドウを取得
@@ -402,14 +430,16 @@ def send_key(message, session, window, pane):
             if pane:
                 config['tmux']['target_pane'] = pane
         
-        await send_to_tmux(config, message)
+        await send_to_tmux(config, message, device_name=None)
     
     asyncio.run(_send_key())
 
 @cli.command()
 @click.option('--device', help='メッセージを受信するデバイス名またはID')
 @click.option('--all-devices', is_flag=True, help='全デバイス宛のメッセージを受信')
-def listen(device, all_devices):
+@click.option('--auto-route', is_flag=True, help='デバイス名と同じtmuxセッションに自動ルーティング')
+@click.option('--debug', is_flag=True, help='デバッグモードで実行（詳細ログを表示）')
+def listen(device, all_devices, auto_route, debug):
     """
     Pushbulletからのメッセージを待ち受け、tmuxに送信します。
     """
@@ -421,9 +451,40 @@ def listen(device, all_devices):
         
         config = load_config()
         
+        # auto-routeモードの場合、全デバイスのメッセージを受信
+        if auto_route:
+            click.echo("自動ルーティングモード: 全デバイスのメッセージを受信し、対応するtmuxセッションに送信します。")
+            
+            # デバイス一覧を取得して表示
+            async with AsyncPushbullet(api_key) as pb:
+                try:
+                    devices = await pb.get_devices(active_only=True)
+                    if devices:
+                        click.echo("\nアクティブなデバイス:")
+                        for d in devices:
+                            nickname = d.get('nickname', 'N/A')
+                            # tmuxセッションの存在確認
+                            try:
+                                result = await asyncio.create_subprocess_exec(
+                                    'tmux', 'has-session', '-t', nickname,
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE
+                                )
+                                await result.communicate()
+                                session_exists = result.returncode == 0
+                                status = "✓ tmuxセッションあり" if session_exists else "✗ tmuxセッションなし"
+                            except:
+                                status = "? tmux確認失敗"
+                            
+                            click.echo(f"  - {nickname} ({d['iden'][:8]}...) [{status}]")
+                        click.echo("")
+                except Exception as e:
+                    click.echo(f"デバイス一覧取得エラー: {e}")
+        
         # ターゲットデバイスの特定
         target_device_iden = None
-        if device and not all_devices:
+        device_name = None  # デバイス名を保持
+        if device and not all_devices and not auto_route:
             async with AsyncPushbullet(api_key) as pb:
                 try:
                     devices = await pb.get_devices()
@@ -440,9 +501,9 @@ def listen(device, all_devices):
                 except Exception as e:
                     click.echo(f"デバイス情報の取得中にエラーが発生しました: {e}", err=True)
                     return
-        elif all_devices:
+        elif all_devices and not auto_route:
             click.echo("警告: --all-devicesオプションは無効です。特定のデバイス宛のメッセージのみ処理します。")
-        else:
+        elif not auto_route:
             # デフォルト：現在のデバイス名で登録されているデバイスを使用
             device_name = get_device_name()
             async with AsyncPushbullet(api_key) as pb:
@@ -462,47 +523,113 @@ def listen(device, all_devices):
                     click.echo(f"デバイス情報を取得できませんでした: {e}", err=True)
                     return
         
-        async def on_push(push):
-            """プッシュを受信したときの処理"""
-            # noteタイプのみ処理
-            if push.get('type') != 'note':
-                return
+        # auto-routeモード用のハンドラー
+        if auto_route:
+            # デバイス情報をキャッシュ
+            device_cache = {}
+            async with AsyncPushbullet(api_key) as pb:
+                devices = await pb.get_devices()
+                for d in devices:
+                    device_cache[d['iden']] = d.get('nickname', d['iden'])
             
-            # デバイスフィルタリング
-            target_device = push.get('target_device_iden')
-            
-            # 全デバイス宛のメッセージは無視
-            if not target_device:
-                return
-            
-            # 特定のデバイス宛のメッセージのみ処理
-            # target_device_idenが設定されている場合は、そのデバイス宛のメッセージのみ処理
-            if target_device != target_device_iden:
-                # 他のデバイス宛のメッセージは無視
-                return
-            
-            title = push.get('title', 'メッセージ')
-            body = push.get('body', '')
-            sender_name = push.get('sender_name', '不明')
-            sender_email = push.get('sender_email', '')
-            
-            click.echo("-" * 40)
-            click.echo(f"新しいメッセージを受信しました:")
-            if sender_email:
-                click.echo(f"  送信者: {sender_name} ({sender_email})")
-            else:
+            async def on_push_auto_route(push):
+                """自動ルーティングモードでのプッシュ処理"""
+                # noteタイプのみ処理
+                if push.get('type') != 'note':
+                    return
+                
+                # デバイス情報を取得
+                target_device_iden = push.get('target_device_iden')
+                
+                # 全デバイス宛のメッセージは無視
+                if not target_device_iden:
+                    return
+                
+                # デバイス名を取得
+                target_device_name = device_cache.get(target_device_iden, None)
+                if not target_device_name:
+                    click.echo(f"警告: 未知のデバイスID: {target_device_iden}")
+                    return
+                
+                # tmuxセッションの存在確認
+                try:
+                    result = await asyncio.create_subprocess_exec(
+                        'tmux', 'has-session', '-t', target_device_name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await result.communicate()
+                    session_exists = result.returncode == 0
+                except:
+                    session_exists = False
+                
+                if not session_exists:
+                    # セッションが存在しない場合はスキップ（ログのみ）
+                    click.echo(f"[スキップ] {target_device_name}: tmuxセッションが存在しません")
+                    return
+                
+                # メッセージ情報を表示
+                title = push.get('title', 'メッセージ')
+                body = push.get('body', '')
+                sender_name = push.get('sender_name', '不明')
+                
+                click.echo("-" * 40)
+                click.echo(f"メッセージを {target_device_name} セッションに送信:")
                 click.echo(f"  送信者: {sender_name}")
-            click.echo(f"  宛先デバイス: {target_device}")
-            click.echo(f"  タイトル: {title}")
-            click.echo(f"  本文: {body}")
-            click.echo("-" * 40)
+                click.echo(f"  タイトル: {title}")
+                click.echo(f"  本文: {body[:50]}..." if len(body) > 50 else f"  本文: {body}")
+                click.echo("-" * 40)
+                
+                # tmuxに送信（デバイス名を指定）
+                await send_to_tmux(config, body, device_name=target_device_name)
             
-            # tmuxに送信
-            await send_to_tmux(config, body)
+            on_push = on_push_auto_route
+        else:
+            # 既存のon_push関数（特定デバイスモード）
+            async def on_push(push):
+                """プッシュを受信したときの処理"""
+                # noteタイプのみ処理
+                if push.get('type') != 'note':
+                    return
+                
+                # デバイスフィルタリング
+                target_device = push.get('target_device_iden')
+                
+                # 全デバイス宛のメッセージは無視
+                if not target_device:
+                    return
+                
+                # 特定のデバイス宛のメッセージのみ処理
+                # target_device_idenが設定されている場合は、そのデバイス宛のメッセージのみ処理
+                if target_device != target_device_iden:
+                    # 他のデバイス宛のメッセージは無視
+                    return
+                
+                title = push.get('title', 'メッセージ')
+                body = push.get('body', '')
+                sender_name = push.get('sender_name', '不明')
+                sender_email = push.get('sender_email', '')
+                
+                click.echo("-" * 40)
+                click.echo(f"新しいメッセージを受信しました:")
+                if sender_email:
+                    click.echo(f"  送信者: {sender_name} ({sender_email})")
+                else:
+                    click.echo(f"  送信者: {sender_name}")
+                click.echo(f"  宛先デバイス: {target_device}")
+                click.echo(f"  タイトル: {title}")
+                click.echo(f"  本文: {body}")
+                click.echo("-" * 40)
+                
+                # tmuxに送信 (デバイス名を渡す)
+                # 外側のスコープのdevice_nameを参照
+                await send_to_tmux(config, body, device_name=device_name)
         
-        # リスナーを開始
-        listener = AsyncPushbulletListener(api_key, on_push)
+        # リスナーを開始（デバッグモード対応）
+        listener = AsyncPushbulletListener(api_key, on_push, debug=debug)
         
+        if debug:
+            click.echo("デバッグモードで実行中...")
         click.echo(f"Pushbulletのストリームを開始します。")
         click.echo("Ctrl+Cで終了します。")
         
