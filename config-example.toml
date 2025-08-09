@@ -1,0 +1,32 @@
+# push-tmux 設定ファイル例
+# このファイルを config.toml としてコピーして使用してください
+
+[tmux]
+# tmux ターゲット設定
+target_session = "current"  # または特定のセッション名
+target_window = "first"     # または特定のウィンドウインデックス
+target_pane = "first"       # または特定のペインインデックス
+
+[daemon]
+# デーモンモード設定
+reload_interval = 1.0                    # ファイル監視間隔（秒）
+watch_files = ["config.toml", ".env"]    # 監視するファイルのリスト
+ignore_patterns = [                      # 無視するファイルパターン
+    "*.pyc",
+    "__pycache__/*",
+    ".git/*",
+    "*.log"
+]
+
+[daemon.logging]
+# ロギング設定
+enable_reload_logs = true                # リロードログの有効化
+log_file = ""                           # ログファイルパス（空文字で標準出力）
+log_level = "INFO"                      # ログレベル（DEBUG, INFO, WARNING, ERROR）
+
+[daemon.monitoring]
+# 監視設定
+cpu_threshold = 80.0                    # CPU使用率閾値（%）
+memory_threshold = 500                  # メモリ使用量閾値（MB）
+websocket_check = true                  # WebSocket接続確認
+heartbeat_interval = 30                 # ハートビート間隔（秒）
