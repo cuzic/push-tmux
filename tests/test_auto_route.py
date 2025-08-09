@@ -20,8 +20,7 @@ from async_pushbullet import AsyncPushbullet
 class TestAutoRouteMode:
     """自動ルーティングモードのテスト"""
     
-    @pytest.mark.asyncio
-    async def test_auto_route_session_detection(self):
+    def test_auto_route_session_detection(self):
         """tmuxセッションの自動検出"""
         # モックデバイス
         devices = [
@@ -60,9 +59,14 @@ class TestAutoRouteMode:
                     
                     mock_exec.side_effect = has_session_side_effect
                     
-                    # CLIを実行
-                    runner = click.testing.CliRunner()
-                    result = runner.invoke(cli, ['listen', '--auto-route'], input='\n', catch_exceptions=False)
+                    # CLIを実行（listenコマンドをモック）
+                    with patch('push_tmux.AsyncPushbulletListener') as mock_listener_class:
+                        mock_listener = AsyncMock()
+                        mock_listener.run = AsyncMock()
+                        mock_listener_class.return_value = mock_listener
+                        
+                        runner = click.testing.CliRunner()
+                        result = runner.invoke(cli, ['listen', '--auto-route'], input='\n', catch_exceptions=False)
                     
                     # セッション検出が正しく動作したか確認
                     assert 'push-tmux' in result.output

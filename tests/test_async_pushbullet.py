@@ -199,20 +199,16 @@ class TestAsyncPushbulletListener:
     async def test_handle_tickle(self, listener):
         """tickleハンドリングのテスト"""
         mock_pushes = [
-            {"iden": "push1", "active": True, "dismissed": False},
-            {"iden": "push2", "active": False, "dismissed": False},
-            {"iden": "push3", "active": True, "dismissed": True}
+            {"iden": "push1", "active": True, "dismissed": False, "type": "note"},
+            {"iden": "push2", "active": False, "dismissed": False, "type": "note"},
+            {"iden": "push3", "active": True, "dismissed": True, "type": "note"}
         ]
         
-        with patch('async_pushbullet.AsyncPushbullet') as MockPB:
-            mock_pb = AsyncMock()
-            mock_pb.get_pushes = AsyncMock(return_value=mock_pushes)
-            mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
-            mock_pb.__aexit__ = AsyncMock()
-            MockPB.return_value = mock_pb
-            
-            await listener._handle_tickle()
-            
-            # アクティブで未読のプッシュのみ処理される
-            assert listener.on_push.call_count == 1
-            listener.on_push.assert_called_with(mock_pushes[0])
+        # listener.pb_clientを直接モック
+        listener.pb_client.get_pushes = AsyncMock(return_value=mock_pushes)
+        
+        await listener._handle_tickle()
+        
+        # アクティブで未読のプッシュのみ処理される
+        assert listener.on_push.call_count == 1
+        listener.on_push.assert_called_with(mock_pushes[0])

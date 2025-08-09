@@ -320,7 +320,7 @@ def delete_devices(name, device_id, yes, include_inactive):
                 # デバイスの選択肢を作成
                 choices = []
                 for device in devices:
-                    name = device.get('nickname', 'N/A')
+                    device_name = device.get('nickname', 'N/A')
                     iden = device['iden']
                     active = "✓" if device.get('active', False) else " "
                     created = device.get('created', 'N/A')
@@ -341,7 +341,7 @@ def delete_devices(name, device_id, yes, include_inactive):
                     model = device.get('model', '')
                     device_info = f" ({manufacturer} {model})" if manufacturer or model else ""
                     
-                    label = f"[{active}] {name:<20} (ID: {iden[:10]}...) 作成: {created_str}{device_info}"
+                    label = f"[{active}] {device_name:<20} (ID: {iden[:10]}...) 作成: {created_str}{device_info}"
                     choices.append(questionary.Choice(title=label, value=device))
                 
                 # チェックボックスで複数選択

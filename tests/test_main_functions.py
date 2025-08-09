@@ -64,15 +64,23 @@ class TestAsyncPushbulletRequest:
     @pytest.mark.asyncio
     async def test_request_http_error(self, pb):
         """HTTPエラーのテスト"""
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock(side_effect=aiohttp.ClientResponseError(
-            None, None, status=404, message="Not Found"
-        ))
+        mock_response = AsyncMock()
+        mock_response.raise_for_status.side_effect = aiohttp.ClientResponseError(
+            request_info=MagicMock(), 
+            history=(), 
+            status=404,
+            message="Not Found",
+            headers={}
+        )
+        mock_response.json = AsyncMock(return_value={})
         
-        mock_session = MagicMock()
-        mock_session.request = MagicMock()
-        mock_session.request.return_value.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_session.request.return_value.__aexit__ = AsyncMock()
+        # contextmanagerを作成
+        mock_context = AsyncMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        
+        mock_session = AsyncMock()
+        mock_session.request.return_value = mock_context
         pb.session = mock_session
         
         with pytest.raises(aiohttp.ClientResponseError):
@@ -110,22 +118,19 @@ class TestAsyncPushbulletListenerFullFlow:
         
         # WebSocket接続をモック
         mock_ws = AsyncMock()
-        mock_ws.__aiter__ = AsyncMock(return_value=iter(messages))
+        mock_ws.recv = AsyncMock(side_effect=messages)
+        mock_ws.close = AsyncMock()
         
-        # Pushbullet APIをモック
-        with patch('async_pushbullet.AsyncPushbullet') as MockPB:
-            mock_pb = AsyncMock()
-            mock_pb.get_pushes = AsyncMock(return_value=mock_pushes)
-            mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
-            mock_pb.__aexit__ = AsyncMock()
-            MockPB.return_value = mock_pb
-            
-            # WebSocket接続をモック
-            with patch('websockets.connect', return_value=mock_ws):
-                try:
-                    await asyncio.wait_for(listener.run(), timeout=0.1)
-                except asyncio.TimeoutError:
-                    pass  # タイムアウトは予期される
+        # listener.pb_clientを直接モック
+        listener.pb_client.get_pushes = AsyncMock(return_value=mock_pushes)
+        
+        # WebSocket接続をモック
+        with patch('websockets.connect', new_callable=AsyncMock) as mock_connect:
+            mock_connect.return_value = mock_ws
+            try:
+                await asyncio.wait_for(listener.run(), timeout=0.1)
+            except asyncio.TimeoutError:
+                pass  # タイムアウトは予期される
         
         # on_pushハンドラーが呼ばれた
         assert listener.on_push.call_count >= 1
@@ -134,23 +139,19 @@ class TestAsyncPushbulletListenerFullFlow:
     async def test_handle_tickle_with_pushes(self, listener):
         """tickle処理でプッシュがある場合"""
         mock_pushes = [
-            {"iden": "push1", "active": True, "dismissed": False},
-            {"iden": "push2", "active": False, "dismissed": False},
-            {"iden": "push3", "active": True, "dismissed": True}
+            {"iden": "push1", "active": True, "dismissed": False, "type": "note"},
+            {"iden": "push2", "active": False, "dismissed": False, "type": "note"},
+            {"iden": "push3", "active": True, "dismissed": True, "type": "note"}
         ]
         
-        with patch('async_pushbullet.AsyncPushbullet') as MockPB:
-            mock_pb = AsyncMock()
-            mock_pb.get_pushes = AsyncMock(return_value=mock_pushes)
-            mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
-            mock_pb.__aexit__ = AsyncMock()
-            MockPB.return_value = mock_pb
-            
-            await listener._handle_tickle()
-            
-            # アクティブで未読のプッシュのみ処理
-            assert listener.on_push.call_count == 1
-            listener.on_push.assert_called_with(mock_pushes[0])
+        # listener.pb_clientを直接モック
+        listener.pb_client.get_pushes = AsyncMock(return_value=mock_pushes)
+        
+        await listener._handle_tickle()
+        
+        # アクティブで未読のプッシュのみ処理
+        assert listener.on_push.call_count == 1
+        listener.on_push.assert_called_with(mock_pushes[0])
     
     @pytest.mark.asyncio
     async def test_handle_tickle_no_pushes(self, listener):

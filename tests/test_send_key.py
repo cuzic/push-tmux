@@ -21,7 +21,7 @@ class TestSendKeyCommand:
         
         assert result.exit_code == 0
         mock_load_config.assert_called_once()
-        mock_send_to_tmux.assert_called_once_with({}, "Hello tmux")
+        mock_send_to_tmux.assert_called_once_with({}, "Hello tmux", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -35,7 +35,7 @@ class TestSendKeyCommand:
         assert result.exit_code == 0
         mock_load_config.assert_called_once()
         expected_config = {'tmux': {'target_session': 'my-session'}}
-        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message")
+        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -49,7 +49,7 @@ class TestSendKeyCommand:
         assert result.exit_code == 0
         mock_load_config.assert_called_once()
         expected_config = {'tmux': {'target_window': '2'}}
-        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message")
+        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -63,7 +63,7 @@ class TestSendKeyCommand:
         assert result.exit_code == 0
         mock_load_config.assert_called_once()
         expected_config = {'tmux': {'target_pane': '1'}}
-        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message")
+        mock_send_to_tmux.assert_called_once_with(expected_config, "Test message", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -88,7 +88,7 @@ class TestSendKeyCommand:
                 'target_pane': '2'
             }
         }
-        mock_send_to_tmux.assert_called_once_with(expected_config, "Complex message")
+        mock_send_to_tmux.assert_called_once_with(expected_config, "Complex message", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -100,7 +100,7 @@ class TestSendKeyCommand:
         result = runner.invoke(cli, ["send-key", "echo 'Hello \"World\" $USER'"])
         
         assert result.exit_code == 0
-        mock_send_to_tmux.assert_called_once_with({}, "echo 'Hello \"World\" $USER'")
+        mock_send_to_tmux.assert_called_once_with({}, "echo 'Hello \"World\" $USER'", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -112,7 +112,7 @@ class TestSendKeyCommand:
         result = runner.invoke(cli, ["send-key", "こんにちは 🚀 世界"])
         
         assert result.exit_code == 0
-        mock_send_to_tmux.assert_called_once_with({}, "こんにちは 🚀 世界")
+        mock_send_to_tmux.assert_called_once_with({}, "こんにちは 🚀 世界", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -124,7 +124,7 @@ class TestSendKeyCommand:
         result = runner.invoke(cli, ["send-key", ""])
         
         assert result.exit_code == 0
-        mock_send_to_tmux.assert_called_once_with({}, "")
+        mock_send_to_tmux.assert_called_once_with({}, "", device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -150,7 +150,7 @@ class TestSendKeyCommand:
                 "target_pane": "0"
             }
         }
-        mock_send_to_tmux.assert_called_once_with(expected_config, "Override test")
+        mock_send_to_tmux.assert_called_once_with(expected_config, "Override test", device_name=None)
     
     def test_send_key_help(self, runner):
         """ヘルプメッセージの表示"""
@@ -174,7 +174,7 @@ class TestSendKeyCommand:
         result = runner.invoke(cli, ["send-key", multiline_message])
         
         assert result.exit_code == 0
-        mock_send_to_tmux.assert_called_once_with({}, multiline_message)
+        mock_send_to_tmux.assert_called_once_with({}, multiline_message, device_name=None)
     
     @patch('push_tmux.send_to_tmux')
     @patch('push_tmux.load_config')
@@ -187,4 +187,4 @@ class TestSendKeyCommand:
         result = runner.invoke(cli, ["send-key", "ls -la"])
         
         assert result.exit_code == 0
-        mock_send_to_tmux.assert_called_once_with({}, "ls -la")
+        mock_send_to_tmux.assert_called_once_with({}, "ls -la", device_name=None)
