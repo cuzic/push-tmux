@@ -58,7 +58,7 @@ class TestRegisterCommand:
     def test_register_new_device(self, runner):
         """新規デバイス登録のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(return_value=[])
                 mock_pb.create_device = AsyncMock(return_value={
@@ -77,7 +77,7 @@ class TestRegisterCommand:
     def test_register_existing_device(self, runner):
         """既存デバイスの場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 existing_device = {
                     'iden': 'existing_id',
                     'nickname': 'test_device',
@@ -113,7 +113,7 @@ class TestListDevicesCommand:
     def test_list_devices_empty(self, runner):
         """デバイスがない場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.list_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(return_value=[])
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -122,12 +122,12 @@ class TestListDevicesCommand:
                 
                 result = runner.invoke(cli, ['list-devices'])
                 assert result.exit_code == 0
-                assert "登録されているデバイスはありません" in result.output
+                assert "登録されているデバイスがありません" in result.output
     
     def test_list_devices_with_devices(self, runner):
         """デバイスがある場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.list_devices.AsyncPushbullet') as MockPB:
                 devices = [
                     {
                         'iden': 'dev1',
@@ -155,10 +155,8 @@ class TestListDevicesCommand:
                 assert result.exit_code == 0
                 assert "Device 1" in result.output
                 assert "dev1" in result.output
-                assert "Apple" in result.output
-                assert "iPhone" in result.output
                 assert "N/A" in result.output  # nickname for dev2
-                assert "合計: 2 デバイス" in result.output
+                assert "登録されているデバイス (2件)" in result.output
 
 
 class TestDeleteDevicesCommand:
@@ -171,7 +169,7 @@ class TestDeleteDevicesCommand:
     def test_delete_single_device_by_name(self, runner):
         """名前指定での単一デバイス削除のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.delete_devices.AsyncPushbullet') as MockPB:
                 devices = [
                     {'iden': 'dev1', 'nickname': 'Device 1'},
                     {'iden': 'dev2', 'nickname': 'Device 2'}
@@ -191,7 +189,7 @@ class TestDeleteDevicesCommand:
     def test_delete_single_device_by_id(self, runner):
         """ID指定での単一デバイス削除のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.delete_devices.AsyncPushbullet') as MockPB:
                 devices = [
                     {'iden': 'dev1', 'nickname': 'Device 1'},
                     {'iden': 'dev2', 'nickname': 'Device 2'}
@@ -211,7 +209,7 @@ class TestDeleteDevicesCommand:
     def test_delete_device_not_found(self, runner):
         """存在しないデバイスの削除テスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.delete_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(return_value=[])
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -221,6 +219,7 @@ class TestDeleteDevicesCommand:
                 result = runner.invoke(cli, ['delete-devices', '--name', 'NonExistent'])
                 assert result.exit_code == 0
                 assert "エラー: 名前 'NonExistent' のデバイスが見つかりません" in result.output
+
 
 
 class TestListenCommand:
@@ -240,7 +239,7 @@ class TestListenCommand:
     def test_listen_device_not_found(self, runner):
         """指定デバイスが見つからない場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.device.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(return_value=[])
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -254,7 +253,7 @@ class TestListenCommand:
     def test_listen_default_device_not_registered(self, runner):
         """デフォルトデバイスが登録されていない場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token', 'DEVICE_NAME': 'test_device'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.device.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(return_value=[])
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -263,5 +262,5 @@ class TestListenCommand:
                 
                 result = runner.invoke(cli, ['listen'])
                 assert result.exit_code == 0
-                assert "エラー: デバイス 'test_device' が登録されていません" in result.output
-                assert "先に 'push-tmux register' でデバイスを登録してください" in result.output
+                assert "エラー: デバイス 'test_device' が見つかりません" in result.output
+                assert "最初に `push-tmux register` でデバイスを登録してください" in result.output

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from push_tmux import get_device_name, load_config, save_config
+from push_tmux.config import get_device_name, load_config, save_config
 
 
 class TestDeviceName:

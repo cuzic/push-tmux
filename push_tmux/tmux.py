@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""
+tmux integration utilities for push-tmux
+"""
+import asyncio
+import click
+import os
+from .device import _resolve_device_mapping
+
+
+async def _check_session_exists(session_name):
+    """tmuxセッションが存在するかチェック"""
+    try:
+        result = await asyncio.create_subprocess_exec(
+            'tmux', 'has-session', '-t', session_name,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        returncode = await result.wait()
+        return returncode == 0
+    except:
+        return False
+
+
+async def _get_current_session():
+    """現在のtmuxセッション名を取得"""
+    tmux_env = os.getenv('TMUX')
+    if tmux_env:
+        try:
+            result = await asyncio.create_subprocess_exec(
+                'tmux', 'display-message', '-p', '#{session_name}',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await result.communicate()
+            if result.returncode == 0:
+                return stdout.decode().strip()
+        except:
+            pass
+    return None
+
+
+async def _try_mapped_session(device_name, device_mapping):
+    """デバイスマッピングによるセッション解決を試行"""
+    mapped_session, mapped_window, mapped_pane = await _resolve_device_mapping(device_name, device_mapping)
+    
+    if mapped_session and await _check_session_exists(mapped_session):
+        click.echo(f"デバイス '{device_name}' のマッピング設定に従い、tmuxセッション '{mapped_session}' を使用します。")
+        return mapped_session, mapped_window, mapped_pane
+    elif mapped_session:
+        click.echo(f"警告: マッピングされたtmuxセッション '{mapped_session}' が存在しません。デフォルトに戻ります。")
+    
+    return None, None, None
+
+
+async def _try_device_name_session(device_name, device_mapping):
+    """デバイス名と同名のセッション解決を試行"""
+    if await _check_session_exists(device_name):
+        click.echo(f"デバイス名と同じtmuxセッション '{device_name}' を使用します。")
+        return device_name, None, None
+    elif device_name not in device_mapping:
+        click.echo(f"警告: tmuxセッション '{device_name}' が存在しません。")
+    
+    return None, None, None
+
+
+async def _show_session_not_found_error(device_name):
+    """セッションが見つからない場合のエラーメッセージ表示"""
+    if device_name:
+        click.echo(f"エラー: tmuxセッション '{device_name}' が見つかりません。", err=True)
+        click.echo(f"以下のいずれかの対処を行ってください:", err=True)
+        click.echo(f"  1. tmuxセッション '{device_name}' を作成する", err=True)
+        click.echo(f"  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
+        click.echo(f"  3. config.tomlの[tmux].target_sessionを明示的に設定する", err=True)
+    else:
+        click.echo("エラー: tmuxセッションが見つかりません。", err=True)
+        click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
+
+
+async def _resolve_target_session(config, device_name):
+    """ターゲットセッションを決定"""
+    tmux_config = config.get('tmux', {})
+    session_setting = tmux_config.get('target_session')
+    device_mapping = config.get('device_mapping', {})
+    
+    # 1. configに明示的な設定がある場合はそれを優先
+    if session_setting and session_setting != 'current':
+        return session_setting, None, None
+    
+    # 2. device_nameがある場合の処理
+    if device_name:
+        # まずdevice_mappingを確認
+        result = await _try_mapped_session(device_name, device_mapping)
+        if result[0]:
+            return result
+        
+        # デバイス名と同じ名前のtmuxセッションが存在するか確認
+        result = await _try_device_name_session(device_name, device_mapping)
+        if result[0]:
+            return result
+    
+    # 3. 現在のセッションを使用
+    current_session = await _get_current_session()
+    if current_session:
+        click.echo(f"現在のtmuxセッション '{current_session}' を使用します。")
+        return current_session, None, None
+    
+    # 4. エラー処理
+    await _show_session_not_found_error(device_name)
+    return None, None, None
+
+
+async def _resolve_first_window(target_session):
+    """最初のウィンドウを取得"""
+    try:
+        result = await asyncio.create_subprocess_exec(
+            'tmux', 'list-windows', '-t', target_session, '-F', '#{window_index}',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await result.communicate()
+        windows = stdout.decode().strip().split('\n')
+        return windows[0] if windows else '0'
+    except:
+        return '0'
+
+
+async def _resolve_first_pane(target_session, target_window):
+    """最初のペインを取得"""
+    try:
+        result = await asyncio.create_subprocess_exec(
+            'tmux', 'list-panes', '-t', f"{target_session}:{target_window}", '-F', '#{pane_index}',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await result.communicate()
+        panes = stdout.decode().strip().split('\n')
+        return panes[0] if panes else '0'
+    except:
+        return '0'
+
+
+async def _apply_mapping_overrides(window_setting, pane_setting, mapped_window, mapped_pane):
+    """マッピングのオーバーライドを適用"""
+    if mapped_window is not None:
+        window_setting = mapped_window
+    if mapped_pane is not None:
+        pane_setting = mapped_pane
+    return window_setting, pane_setting
+
+
+async def _resolve_window_pane(target_session, window_setting, pane_setting, mapped_window, mapped_pane):
+    """ウィンドウとペインの設定を解決"""
+    # マッピングで指定されたウィンドウ・ペインがあれば使用
+    window_setting, pane_setting = await _apply_mapping_overrides(window_setting, pane_setting, mapped_window, mapped_pane)
+    
+    # デフォルト値の設定
+    if window_setting is None:
+        window_setting = 'first'
+    if pane_setting is None:
+        pane_setting = 'first'
+    
+    # ウィンドウ設定の処理
+    if window_setting == 'first':
+        target_window = await _resolve_first_window(target_session)
+    else:
+        target_window = window_setting
+    
+    # ペイン設定の処理
+    if pane_setting == 'first':
+        target_pane = await _resolve_first_pane(target_session, target_window)
+    else:
+        target_pane = pane_setting
+    
+    return target_window, target_pane
+
+
+async def _send_tmux_commands(target, message):
+    """tmuxにメッセージとEnterキーを送信"""
+    try:
+        # メッセージを送信
+        click.echo(f"tmuxセッション '{target}' にメッセージを送信します...")
+        
+        await asyncio.create_subprocess_exec(
+            'tmux', 'send-keys', '-t', target, message, 'Enter'
+        )
+        click.echo(f"メッセージ '{message}' を送信しました。")
+    except Exception as e:
+        click.echo(f"tmuxへの送信でエラーが発生しました: {e}", err=True)
+
+
+async def send_to_tmux(config, message, device_name=None):
+    """tmuxにメッセージを送信するメイン関数"""
+    # セッションの決定
+    target_session, mapped_window, mapped_pane = await _resolve_target_session(config, device_name)
+    if not target_session:
+        return
+    
+    # ウィンドウとペインの決定
+    tmux_config = config.get('tmux', {})
+    window_setting = tmux_config.get('target_window')
+    pane_setting = tmux_config.get('target_pane')
+    
+    target_window, target_pane = await _resolve_window_pane(
+        target_session, window_setting, pane_setting, mapped_window, mapped_pane
+    )
+    
+    # tmux送信先を構築
+    target = f"{target_session}:{target_window}.{target_pane}"
+    
+    # tmuxにコマンド送信
+    await _send_tmux_commands(target, message)
