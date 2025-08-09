@@ -50,9 +50,13 @@ class TestConfigManagement:
     """設定ファイル管理関数のテスト"""
     
     def test_load_config_file_not_exists(self, isolated_env):
-        """設定ファイルが存在しない場合は空の辞書を返す"""
+        """設定ファイルが存在しない場合はデフォルト設定を返す"""
         config = load_config()
-        assert config == {}
+        # デフォルト設定が返されることを確認
+        assert 'tmux' in config
+        assert 'daemon' in config
+        assert config['tmux']['target_window'] == 'first'
+        assert config['tmux']['target_pane'] == 'first'
     
     def test_save_and_load_config(self, isolated_env):
         """設定の保存と読み込み"""
@@ -70,9 +74,13 @@ class TestConfigManagement:
         save_config(test_config)
         loaded_config = load_config()
         
-        assert loaded_config == test_config
+        # 保存した設定が読み込まれていることを確認
         assert loaded_config["tmux"]["target_session"] == "test-session"
+        assert loaded_config["tmux"]["target_window"] == "2"
+        assert loaded_config["tmux"]["target_pane"] == "1"
         assert loaded_config["custom"]["key"] == "value"
+        # デフォルトのdaemon設定も追加されている
+        assert 'daemon' in loaded_config
     
     def test_save_config_overwrites_existing(self, isolated_env):
         """既存の設定ファイルを上書き"""
@@ -84,10 +92,12 @@ class TestConfigManagement:
         second_config = {"key2": "value2"}
         save_config(second_config)
         
-        # 新しい設定のみが残る
+        # 新しい設定が読み込まれる
         loaded_config = load_config()
-        assert loaded_config == second_config
+        assert loaded_config["key2"] == "value2"
         assert "key1" not in loaded_config
+        # デフォルトのdaemon設定も追加されている
+        assert 'daemon' in loaded_config
     
     def test_save_config_creates_file(self, isolated_env):
         """設定ファイルが作成される"""
@@ -116,6 +126,11 @@ class TestConfigManagement:
         save_config(config)
         loaded_config = load_config()
         
-        assert loaded_config == config
+        # 保存した設定が正しく読み込まれていることを確認
+        assert loaded_config["japanese"] == config["japanese"]
+        assert loaded_config["emoji"] == config["emoji"]
+        assert loaded_config["special"] == config["special"]
         assert loaded_config["japanese"] == "日本語テスト"
         assert loaded_config["emoji"] == "🚀✨"
+        # デフォルトのdaemon設定も追加されている
+        assert 'daemon' in loaded_config

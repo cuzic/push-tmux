@@ -27,7 +27,11 @@ class TestConfigFunctions:
         with patch('os.path.exists', return_value=True):
             with patch('builtins.open', mock_open(read_data=toml.dumps(config_data))):
                 config = load_config()
-                assert config == config_data
+                # tmux設定が正しく読み込まれていることを確認
+                assert config['tmux']['target_session'] == 'test'
+                # デフォルトのdaemon設定が追加されていることを確認
+                assert 'daemon' in config
+                assert config['daemon']['reload_interval'] == 1.0
     
     def test_save_config(self):
         """設定の保存"""

@@ -3,9 +3,9 @@
 
 [tmux]
 # tmux ターゲット設定
-target_session = "current"  # または特定のセッション名
-target_window = "first"     # または特定のウィンドウインデックス
-target_pane = "first"       # または特定のペインインデックス
+# target_session = "current"  # 省略時は現在のセッション、または特定のセッション名を指定
+# target_window = "first"     # 省略時は最初のウィンドウ（デフォルト）、または特定のウィンドウインデックスを指定
+# target_pane = "first"       # 省略時は最初のペイン（デフォルト）、または特定のペインインデックスを指定
 
 [daemon]
 # デーモンモード設定

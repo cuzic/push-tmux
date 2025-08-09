@@ -230,8 +230,12 @@ async def send_to_tmux(config, message, device_name=None):
             return
     
     # デフォルト値の設定
-    # ウィンドウ: 設定がない場合は実際の最初のウィンドウを取得
-    if window_setting is None or window_setting == 'first':
+    # ウィンドウ: デフォルトは "first"（最初のウィンドウ）
+    if window_setting is None:
+        window_setting = 'first'  # デフォルトを明示的に設定
+    
+    # ウィンドウ設定の処理
+    if window_setting == 'first':
         try:
             result = await asyncio.create_subprocess_exec(
                 'tmux', 'list-windows', '-t', target_session, '-F', '#{window_index}',
@@ -246,8 +250,12 @@ async def send_to_tmux(config, message, device_name=None):
     else:
         target_window = window_setting
     
-    # ペイン: 設定がない場合は実際の最初のペインを取得
-    if pane_setting is None or pane_setting == 'first':
+    # ペイン: デフォルトは "first"（最初のペイン）
+    if pane_setting is None:
+        pane_setting = 'first'  # デフォルトを明示的に設定
+    
+    # ペイン設定の処理
+    if pane_setting == 'first':
         try:
             result = await asyncio.create_subprocess_exec(
                 'tmux', 'list-panes', '-t', f"{target_session}:{target_window}", '-F', '#{pane_index}',

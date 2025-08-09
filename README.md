@@ -1,146 +1,207 @@
 # push-tmux
 
-Pushbulletのメッセージを特定のtmuxセッションに送信するCLIツール
+A CLI tool to send Pushbullet messages to specific tmux sessions
 
-## 概要
+## Overview
 
-push-tmuxは、Pushbulletで受信したメッセージを自動的にtmuxセッションに送信するツールです。ディレクトリごとに異なるデバイス名で動作させることで、プロジェクト別のメッセージ管理が可能です。
+push-tmux is a tool that automatically sends messages received via Pushbullet to tmux sessions. By using different device names for each directory, you can manage messages on a per-project basis.
 
-## 主な使用方法
+### Key Features
 
-### ディレクトリベースのワークフロー
+- 📱 **Device-based Message Routing** - Use different devices for each project
+- 🔄 **Auto-restart Daemon Mode** - Process monitoring and automatic recovery on failure (NEW!)
+- 🎯 **Auto-routing** - Automatically send messages to tmux sessions with matching device names
+- 📝 **Detailed Logging** - Support for debugging and troubleshooting
+- ⚙️ **Flexible Configuration** - Detailed configuration in TOML format
 
-特定のプロジェクトディレクトリ（例：`1on1-ver2`）で作業する場合の推奨フローです。
+## Quick Start
 
-#### 1. プロジェクトディレクトリへ移動
+### Directory-based Workflow
+
+The recommended workflow when working on a specific project directory (e.g., `1on1-ver2`).
+
+#### 1. Navigate to Project Directory
 ```bash
 cd ~/projects/1on1-ver2
 ```
 
-#### 2. 環境変数でデバイス名を設定
+#### 2. Set Device Name via Environment Variable
 ```bash
-# .envファイルに設定
+# Set in .env file
 echo "DEVICE_NAME=1on1-ver2" >> .env
 
-# または環境変数として設定
+# Or set as environment variable
 export DEVICE_NAME=1on1-ver2
 ```
 
-注: `DEVICE_NAME`が設定されていない場合、現在のディレクトリ名が自動的にデバイス名として使用されます。
+Note: If `DEVICE_NAME` is not set, the current directory name will be used automatically as the device name.
 
-#### 3. デバイスを登録
+#### 3. Register Device
 ```bash
 push-tmux register
-# => デバイス '1on1-ver2' を登録しました。
+# => Device '1on1-ver2' has been registered.
 ```
 
-#### 4. tmuxセッションを開始
+#### 4. Start tmux Session
 ```bash
-# 新しいtmuxセッションを開始
+# Start new tmux session
 tmux new-session -s 1on1-ver2
 
-# または既存のセッションにアタッチ
+# Or attach to existing session
 tmux attach -t 1on1-ver2
 ```
 
-#### 5. tmux内でlistenを開始
+#### 5. Start Listening in tmux
 ```bash
-# tmuxセッション内で実行
+# Run inside tmux session (traditional method)
 push-tmux listen
-# => デバイス '1on1-ver2' (ID: xxx) として待ち受けます。
+# => Listening as device '1on1-ver2' (ID: xxx).
+
+# Or run in daemon mode (recommended)
+push-tmux daemon
+# => Running with auto-restart capability
 ```
 
-#### 6. メッセージを送信
-別のデバイス（スマートフォンなど）から、Pushbulletで「1on1-ver2」デバイス宛にメッセージを送信すると、自動的に現在のtmuxセッションの最初のウィンドウ・最初のペインにメッセージが入力されます。
+#### 6. Send Messages
+Send a message to the "1on1-ver2" device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the first window/first pane of the current tmux session.
 
-## 動作の仕組み
+## How It Works
 
-1. **デバイス識別**: 各ディレクトリで異なるデバイス名を使用することで、プロジェクト別のメッセージルーティングを実現
-2. **メッセージフィルタリング**: 全デバイス宛のメッセージは無視し、特定デバイス宛のメッセージのみを処理
-3. **tmux統合**: 受信したメッセージは自動的に現在のtmuxセッションに送信される
+1. **Device Identification**: Different device names for each directory enable per-project message routing
+2. **Message Filtering**: Ignores broadcast messages, processes only device-specific messages
+3. **tmux Integration**: Received messages are automatically sent to the current tmux session
 
-### デフォルト動作
+### Default Behavior
 
-- **ターゲットセッション**: tmux内で実行時は現在のセッション、それ以外は`config.toml`で指定
-- **ターゲットウィンドウ**: セッションの最初のウィンドウ（インデックス順）
-- **ターゲットペイン**: ウィンドウの最初のペイン（インデックス順）
+- **Target Session**: Current session when run inside tmux, otherwise specified in `config.toml`
+- **Target Window**: First window in the session (by index order, default)
+- **Target Pane**: First pane in the window (by index order, default)
 
-## 設定
+## Configuration
 
-### 環境変数（.envファイル）
+### Environment Variables (.env file)
 
 ```bash
-# Pushbullet APIキー（必須）
+# Pushbullet API key (required)
 PUSHBULLET_TOKEN=o.xxxxxxxxxxxxxxxxxxxxx
 
-# デバイス名（省略時は現在のディレクトリ名）
+# Device name (defaults to current directory name if omitted)
 DEVICE_NAME=my-project
 ```
 
-### config.toml（オプション）
+### config.toml (Optional)
 
-tmuxのターゲットを固定したい場合に使用：
+Customize detailed behavior with the configuration file. See `config-example.toml` for reference.
 
 ```toml
 [tmux]
-target_session = "main"     # 固定のセッション名
-target_window = "1"         # 固定のウィンドウインデックス
-target_pane = "0"          # 固定のペインインデックス
+# target_session = "main"   # Defaults to current session if omitted
+# target_window = "1"       # Defaults to first window if omitted
+# target_pane = "0"         # Defaults to first pane if omitted
+
+[daemon]
+reload_interval = 1.0       # File watch interval (seconds)
+watch_files = ["config.toml", ".env"]  # Files to watch
+
+[daemon.logging]
+log_level = "INFO"          # Log level
+log_file = ""              # Log file path (empty for stdout)
 ```
 
-## コマンド一覧
+## Commands
 
-### デバイス管理
+### Device Management
 ```bash
-# デバイスを登録
+# Register device
 push-tmux register
 push-tmux register --name custom-device
 
-# デバイス一覧を表示
+# List devices
 push-tmux list-devices
 
-# デバイスを削除
+# Delete device
 push-tmux delete-device --name device-name
 push-tmux delete-device --id device-id
 ```
 
-### メッセージ受信
+### Message Reception
 ```bash
-# 現在のデバイス名で受信待機
+# Listen with current device name (traditional method)
 push-tmux listen
 
-# 特定のデバイスとして受信待機
+# Listen as specific device
 push-tmux listen --device other-device
+
+# Run in debug mode
+push-tmux listen --debug
+
+# Auto-routing mode (NEW!)
+push-tmux listen --auto-route
 ```
 
-### テスト
+### Daemon Mode (NEW!)
 ```bash
-# tmuxに直接メッセージを送信（テスト用）
+# Run in daemon mode (with auto-restart)
+push-tmux daemon
+
+# Daemon with auto-routing
+push-tmux daemon --auto-route
+
+# Custom watch interval
+push-tmux daemon --reload-interval 5.0
+
+# Watch additional files
+push-tmux daemon --watch-files myconfig.ini --watch-files secrets.env
+
+# Debug mode
+push-tmux daemon --debug
+```
+
+### Testing
+```bash
+# Send message directly to tmux (for testing)
 push-tmux send-key "test message"
 push-tmux send-key "test" --session mysession --window 0 --pane 1
 ```
 
-## 実用例
+## Practical Examples
 
-### プロジェクトごとの使い分け
+### Per-Project Setup
 
 ```bash
-# プロジェクトA
+# Project A
 cd ~/projects/project-a
 echo "DEVICE_NAME=project-a" > .env
 push-tmux register
 tmux new -s project-a
-push-tmux listen  # project-a宛のメッセージのみ受信
+push-tmux daemon  # Receives only project-a messages (with auto-restart)
 
-# プロジェクトB（別ターミナル）
+# Project B (in another terminal)
 cd ~/projects/project-b
 echo "DEVICE_NAME=project-b" > .env
 push-tmux register
 tmux new -s project-b
-push-tmux listen  # project-b宛のメッセージのみ受信
+push-tmux daemon  # Receives only project-b messages (with auto-restart)
 ```
 
-### スクリプト化
+### Auto-routing Mode (NEW!)
+
+Useful when handling multiple projects simultaneously:
+
+```bash
+# Receive messages for all devices and
+# automatically send to tmux sessions with matching names
+push-tmux daemon --auto-route
+
+# Prepare sessions
+tmux new -s project-a -d
+tmux new -s project-b -d
+tmux new -s project-c -d
+
+# Messages for each device will be automatically sent to corresponding sessions
+```
+
+### Scripting
 
 ```bash
 #!/bin/bash
@@ -149,57 +210,127 @@ push-tmux listen  # project-b宛のメッセージのみ受信
 PROJECT_NAME=$(basename $(pwd))
 export DEVICE_NAME=$PROJECT_NAME
 
-# デバイス登録
+# Register device
 push-tmux register
 
-# tmuxセッション開始
+# Start tmux session
 tmux new-session -d -s $PROJECT_NAME
 
-# push-tmuxリスナーを開始
-tmux send-keys -t $PROJECT_NAME "push-tmux listen" C-m
+# Start push-tmux daemon (with auto-restart)
+tmux send-keys -t $PROJECT_NAME "push-tmux daemon" C-m
 
-# セッションにアタッチ
+# Attach to session
 tmux attach -t $PROJECT_NAME
 ```
 
-## トラブルシューティング
+### Run as systemd Service
 
-### メッセージが受信されない場合
+Suitable for production deployment:
 
-1. デバイスが正しく登録されているか確認
+```bash
+# /etc/systemd/system/push-tmux.service
+[Unit]
+Description=Push-tmux daemon
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/project
+Environment=PUSHBULLET_TOKEN=your-token
+ExecStart=/path/to/venv/bin/push-tmux daemon --auto-route
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Troubleshooting
+
+### Messages Not Being Received
+
+1. Verify device is registered correctly
    ```bash
    push-tmux list-devices
    ```
 
-2. 正しいデバイス宛にメッセージを送信しているか確認
-   - 全デバイス宛のメッセージは無視されます
-   - 特定のデバイスを選択して送信してください
+2. Confirm you're sending to the correct device
+   - Broadcast messages are ignored
+   - Select specific device when sending
 
-3. APIキーが正しく設定されているか確認
+3. Check API key is configured correctly
    ```bash
    cat .env | grep PUSHBULLET_TOKEN
    ```
 
-### tmuxにメッセージが送信されない場合
+### Messages Not Sent to tmux
 
-1. tmuxセッション内で実行しているか確認
+1. Verify you're running inside tmux
    ```bash
-   echo $TMUX  # 値があればtmux内
+   echo $TMUX  # Should have value if inside tmux
    ```
 
-2. ターゲットセッション/ウィンドウ/ペインが存在するか確認
+2. Check target session/window/pane exists
    ```bash
    tmux list-sessions
    tmux list-windows
    tmux list-panes
    ```
 
-## セキュリティ
+### Daemon Restarting Frequently
 
-- `.env`ファイルは`.gitignore`に追加し、バージョン管理に含めないでください
-- APIキーは環境変数で管理し、コード内にハードコードしないでください
-- デバイス名にはプロジェクト名など推測しにくい名前を使用してください
+1. Check logs
+   ```bash
+   # Run in debug mode
+   push-tmux daemon --debug
+   ```
 
-## ライセンス
+2. Adjust watch interval
+   ```bash
+   # Increase watch interval
+   push-tmux daemon --reload-interval 5.0
+   ```
+
+3. Check watched files
+   - Ensure frequently changing files (like logs) are not being watched
+   - Configure exclusions in `config.toml` with `ignore_patterns`
+
+## Installation
+
+```bash
+# Clone repository
+git clone https://github.com/cuzic/push-tmux.git
+cd push-tmux
+
+# Install dependencies (uv recommended)
+uv pip install -e .
+
+# Or using pip
+pip install -e .
+```
+
+## Requirements
+
+- Python 3.10+
+- tmux
+- Pushbullet account and API key
+
+## Security
+
+- Add `.env` file to `.gitignore` to exclude from version control
+- Manage API keys via environment variables, never hardcode in source
+- Use hard-to-guess names like project names for device names
+
+## Documentation
+
+- [DAEMON.md](DAEMON.md) - Detailed daemon mode documentation
+- [config-example.toml](config-example.toml) - Sample configuration file
+- [CLAUDE.md](CLAUDE.md) - Developer guide
+
+## Language
+
+- [日本語版 README](README.ja.md)
+
+## License
 
 MIT
