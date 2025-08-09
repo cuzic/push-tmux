@@ -22,16 +22,16 @@ push-tmuxは、Pushbulletで受信したメッセージを自動的にtmuxセッ
 
 #### 1. プロジェクトディレクトリへ移動
 ```bash
-cd ~/projects/1on1-ver2
+cd ~/projects/webapp
 ```
 
 #### 2. 環境変数でデバイス名を設定
 ```bash
 # .envファイルに設定
-echo "DEVICE_NAME=1on1-ver2" >> .env
+echo "DEVICE_NAME=webapp" >> .env
 
 # または環境変数として設定
-export DEVICE_NAME=1on1-ver2
+export DEVICE_NAME=webapp
 ```
 
 注: `DEVICE_NAME`が設定されていない場合、現在のディレクトリ名が自動的にデバイス名として使用されます。
@@ -39,23 +39,23 @@ export DEVICE_NAME=1on1-ver2
 #### 3. デバイスを登録
 ```bash
 push-tmux register
-# => デバイス '1on1-ver2' を登録しました。
+# => デバイス 'webapp' を登録しました。
 ```
 
 #### 4. tmuxセッションを開始
 ```bash
 # 新しいtmuxセッションを開始
-tmux new-session -s 1on1-ver2
+tmux new-session -s webapp
 
 # または既存のセッションにアタッチ
-tmux attach -t 1on1-ver2
+tmux attach -t webapp
 ```
 
 #### 5. tmux内でlistenを開始
 ```bash
 # tmuxセッション内で実行（従来の方法）
 push-tmux listen
-# => デバイス '1on1-ver2' (ID: xxx) として待ち受けます。
+# => デバイス 'webapp' (ID: xxx) として待ち受けます。
 
 # または、デーモンモードで実行（推奨）
 push-tmux daemon
@@ -63,7 +63,7 @@ push-tmux daemon
 ```
 
 #### 6. メッセージを送信
-別のデバイス（スマートフォンなど）から、Pushbulletで「1on1-ver2」デバイス宛にメッセージを送信すると、自動的に現在のtmuxセッションの最初のウィンドウ・最初のペインにメッセージが入力されます。
+別のデバイス（スマートフォンなど）から、Pushbulletで「webapp」デバイス宛にメッセージを送信すると、自動的に現在のtmuxセッションの最初のウィンドウ・最初のペインにメッセージが入力されます。
 
 ## 動作の仕組み
 

@@ -31,8 +31,8 @@
 # window = "2"
 # pane = "0"
 # 
-# [device_mapping."1on1-ver2"]
-# session = "work"
+# [device_mapping."webapp"]
+# session = "development"
 # window = "first"  # または省略（デフォルトは "first"）
 # pane = "first"    # または省略（デフォルトは "first"）
 

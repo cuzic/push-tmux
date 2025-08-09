@@ -22,16 +22,16 @@ The recommended workflow when working on a specific project directory (e.g., `1o
 
 #### 1. Navigate to Project Directory
 ```bash
-cd ~/projects/1on1-ver2
+cd ~/projects/webapp
 ```
 
 #### 2. Set Device Name via Environment Variable
 ```bash
 # Set in .env file
-echo "DEVICE_NAME=1on1-ver2" >> .env
+echo "DEVICE_NAME=webapp" >> .env
 
 # Or set as environment variable
-export DEVICE_NAME=1on1-ver2
+export DEVICE_NAME=webapp
 ```
 
 Note: If `DEVICE_NAME` is not set, the current directory name will be used automatically as the device name.
@@ -39,23 +39,23 @@ Note: If `DEVICE_NAME` is not set, the current directory name will be used autom
 #### 3. Register Device
 ```bash
 push-tmux register
-# => Device '1on1-ver2' has been registered.
+# => Device 'webapp' has been registered.
 ```
 
 #### 4. Start tmux Session
 ```bash
 # Start new tmux session
-tmux new-session -s 1on1-ver2
+tmux new-session -s webapp
 
 # Or attach to existing session
-tmux attach -t 1on1-ver2
+tmux attach -t webapp
 ```
 
 #### 5. Start Listening in tmux
 ```bash
 # Run inside tmux session (traditional method)
 push-tmux listen
-# => Listening as device '1on1-ver2' (ID: xxx).
+# => Listening as device 'webapp' (ID: xxx).
 
 # Or run in daemon mode (recommended)
 push-tmux daemon
@@ -63,7 +63,7 @@ push-tmux daemon
 ```
 
 #### 6. Send Messages
-Send a message to the "1on1-ver2" device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the first window/first pane of the current tmux session.
+Send a message to the "webapp" device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the first window/first pane of the current tmux session.
 
 ## How It Works
 

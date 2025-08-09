@@ -13,20 +13,20 @@
 2. **ディレクトリごとの使用**
    ```bash
    # プロジェクトディレクトリに移動
-   cd ~/projects/1on1-ver2
+   cd ~/projects/webapp
    
    # デバイスを登録（ディレクトリ名が自動的にデバイス名になる）
    push-tmux register
    
    # tmuxセッションを開始
-   tmux new -s 1on1-ver2
+   tmux new -s webapp
    
    # tmux内でリスナーを起動
    push-tmux listen
    ```
 
 3. **メッセージ送信**
-   - Pushbulletアプリから「1on1-ver2」デバイス宛にメッセージを送信
+   - Pushbulletアプリから「webapp」デバイス宛にメッセージを送信
    - メッセージは自動的にtmuxの現在のセッションに入力される
 
 ## 典型的な使用パターン
@@ -109,11 +109,11 @@ WantedBy=default.target
 使用方法：
 ```bash
 # サービスを有効化
-systemctl --user enable push-tmux@1on1-ver2.service
-systemctl --user start push-tmux@1on1-ver2.service
+systemctl --user enable push-tmux@webapp.service
+systemctl --user start push-tmux@webapp.service
 
 # ログ確認
-journalctl --user -u push-tmux@1on1-ver2.service -f
+journalctl --user -u push-tmux@webapp.service -f
 ```
 
 ## メッセージの送信方法
@@ -123,7 +123,7 @@ journalctl --user -u push-tmux@1on1-ver2.service -f
 1. Pushbulletアプリを開く
 2. 「New Push」または「+」ボタンをタップ
 3. 「Note」を選択
-4. デバイスリストから対象デバイス（例：「1on1-ver2」）を選択
+4. デバイスリストから対象デバイス（例：「webapp」）を選択
 5. タイトルと本文を入力して送信
 
 ### コマンドラインから（テスト用）
@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
 使用例：
 ```bash
-python send-to-device.py 1on1-ver2 "echo 'Hello from Pushbullet'"
+python send-to-device.py webapp "echo 'Hello from Pushbullet'"
 ```
 
 ## tmuxとの連携
