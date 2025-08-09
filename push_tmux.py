@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from collections import ChainMap
 from dotenv import load_dotenv
-from async_pushbullet import AsyncPushbullet, AsyncPushbulletListener
+from asyncpushbullet import AsyncPushbullet, LiveStreamListener
 import questionary
 import aiohttp
 
@@ -824,22 +824,24 @@ async def listen_main(device=None, all_devices=False, auto_route=False, debug=Fa
             # 外側のスコープのdevice_nameを参照
             await send_to_tmux(config, body, device_name=device_name)
     
-    # リスナーを開始（デバッグモード対応）
-    listener = AsyncPushbulletListener(api_key, on_push, debug=debug)
-    
-    if debug:
-        click.echo("デバッグモードで実行中...")
-    click.echo(f"Pushbulletのストリームを開始します。")
-    click.echo("Ctrl+Cで終了します。")
-    
-    try:
-        await listener.run()
-    except KeyboardInterrupt:
-        click.echo("\nストリームを停止します...")
-    except Exception as e:
-        click.echo(f"Pushbulletのストリームでエラーが発生しました: {e}", err=True)
-    finally:
-        click.echo("Pushbulletのストリームを終了しました。")
+    # リスナーを開始（PyPI asyncpushbullet使用）
+    async with AsyncPushbullet(api_key) as pb:
+        listener = LiveStreamListener(pb, types=('push',))
+        
+        if debug:
+            click.echo("デバッグモードで実行中...")
+        click.echo(f"Pushbulletのストリームを開始します。")
+        click.echo("Ctrl+Cで終了します。")
+        
+        try:
+            async for push in listener:
+                await on_push(push)
+        except KeyboardInterrupt:
+            click.echo("\nストリームを停止します...")
+        except Exception as e:
+            click.echo(f"Pushbulletのストリームでエラーが発生しました: {e}", err=True)
+        finally:
+            click.echo("Pushbulletのストリームを終了しました。")
 
 
 @cli.command()

@@ -11,11 +11,12 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from async_pushbullet import AsyncPushbullet, AsyncPushbulletListener
+from asyncpushbullet import AsyncPushbullet, LiveStreamListener
 
 
+@pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため無効化")
 class TestAsyncPushbulletRequest:
-    """AsyncPushbulletの_requestメソッドのテスト"""
+    """AsyncPushbulletの_requestメソッドのテスト（PyPIパッケージに移行したため無効化）"""
     
     @pytest.fixture
     def api_key(self):
@@ -87,8 +88,9 @@ class TestAsyncPushbulletRequest:
             await pb._request("GET", "test")
 
 
+@pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため無効化")
 class TestAsyncPushbulletListenerFullFlow:
-    """AsyncPushbulletListenerの完全なフローテスト"""
+    """AsyncPushbulletListenerの完全なフローテスト（PyPIパッケージに移行したため無効化）"""
     
     @pytest.fixture
     def api_key(self):
@@ -167,8 +169,9 @@ class TestAsyncPushbulletListenerFullFlow:
             listener.on_push.assert_not_called()
 
 
+@pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため無効化")
 class TestAsyncPushbulletEdgeCases:
-    """AsyncPushbulletのエッジケーステスト"""
+    """AsyncPushbulletのエッジケーステスト（PyPIパッケージに移行したため無効化）"""
     
     @pytest.fixture
     def api_key(self):
