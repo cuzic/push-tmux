@@ -29,9 +29,3 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "asyncio: mark test as async"
     )
-
-# 長時間実行されるテストを防ぐ
-@pytest.mark.asyncio
-async def pytest_timeout():
-    """デフォルトタイムアウト: 10秒"""
-    return 10
