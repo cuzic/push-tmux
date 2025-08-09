@@ -14,7 +14,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import push_tmux
-from push_tmux import cli, load_config, save_config, get_device_name, send_to_tmux
+from push_tmux import cli
+from push_tmux.config import load_config, save_config, get_device_name, CONFIG_FILE
+from push_tmux.tmux import send_to_tmux
 
 
 class TestConfigFunctions:
@@ -38,11 +40,11 @@ class TestConfigFunctions:
         config_data = {"tmux": {"target_session": "test"}}
         
         m = mock_open()
-        with patch('pathlib.Path.open', m):
+        with patch('builtins.open', m):
             save_config(config_data)
             
         # ファイルが開かれた
-        m.assert_called_once_with('w', encoding='utf-8')
+        m.assert_called_once_with(CONFIG_FILE, 'w', encoding='utf-8')
         
         # データが書き込まれた
         handle = m()
@@ -107,7 +109,7 @@ class TestSendToTmux:
             # send-keysが呼ばれた
             calls = mock_exec.call_args_list
             send_keys_calls = [call for call in calls if 'send-keys' in str(call)]
-            assert len(send_keys_calls) == 2  # メッセージとEnterキー
+            assert len(send_keys_calls) == 1  # メッセージとEnterキーが一つのコマンドに
             
             # ターゲットが正しい
             for call in send_keys_calls:
@@ -143,8 +145,8 @@ class TestSendKeyCommand:
     
     def test_send_key_with_config_update(self, runner):
         """設定を更新してsend-key実行"""
-        with patch('push_tmux.load_config', return_value={}):
-            with patch('push_tmux.send_to_tmux', new_callable=AsyncMock) as mock_send:
+        with patch('push_tmux.commands.send_key.load_config', return_value={}):
+            with patch('push_tmux.commands.send_key.send_to_tmux', new_callable=AsyncMock) as mock_send:
                 result = runner.invoke(cli, ['send-key', 'test', 
                                             '--session', 'my_session',
                                             '--window', '2',
@@ -170,7 +172,7 @@ class TestRegisterCommand:
     def test_register_with_exception(self, runner):
         """例外が発生した場合"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(side_effect=Exception("Network error"))
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -193,7 +195,7 @@ class TestListDevicesCommand:
     def test_list_devices_with_exception(self, runner):
         """例外が発生した場合"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
-            with patch('push_tmux.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.commands.list_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = AsyncMock(side_effect=Exception("API error"))
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
@@ -202,5 +204,5 @@ class TestListDevicesCommand:
                 
                 result = runner.invoke(cli, ['list-devices'])
                 assert result.exit_code == 0
-                assert "デバイス一覧の取得中にエラーが発生しました" in result.output
+                assert "デバイス一覧取得中にエラーが発生しました" in result.output
                 assert "API error" in result.output

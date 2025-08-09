@@ -10,7 +10,7 @@ import os
 # パスはconftest.pyで設定済み
 import sys
 
-from push_tmux import send_to_tmux
+from push_tmux.tmux import send_to_tmux
 
 
 class TestDeviceMapping:
@@ -296,12 +296,6 @@ class TestDeviceMapping:
             assert "tmuxセッション 'unknown-device' を作成する" in captured.err
             assert "config.tomlの[device_mapping]セクションでマッピングを設定する" in captured.err
 
-
-@pytest.fixture
-def mock_subprocess():
-    """asyncio.create_subprocess_execのモック"""
-    with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock:
-        yield mock
 
 
 def test_summary():

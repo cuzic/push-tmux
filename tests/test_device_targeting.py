@@ -11,7 +11,7 @@ import os
 # プロジェクトのルートディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from push_tmux import load_config
+from push_tmux.config import load_config
 
 
 def test_device_targeting_logic():
@@ -87,8 +87,8 @@ async def test_on_push_function():
     """on_push関数の動作をテスト"""
     
     # モックの設定
-    with patch('push_tmux.send_to_tmux', new_callable=AsyncMock) as mock_send:
-        with patch('push_tmux.click.echo') as mock_echo:
+    with patch('push_tmux.tmux.send_to_tmux', new_callable=AsyncMock) as mock_send:
+        with patch('click.echo') as mock_echo:
             # テスト用のデバイスID
             my_device_iden = "test_device_123"
             

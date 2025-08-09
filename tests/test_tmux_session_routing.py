@@ -13,7 +13,8 @@ import json
 # プロジェクトのルートをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from push_tmux import send_to_tmux, load_config
+from push_tmux.tmux import send_to_tmux
+from push_tmux.config import load_config
 import click
 
 
@@ -27,7 +28,7 @@ class TestTmuxSessionRouting:
         message = "test message"
         device_name = "push-tmux"
         
-        with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+        with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
             # has-sessionコマンドの結果（セッション存在）
             mock_has_session = AsyncMock()
             mock_has_session.returncode = 0
@@ -79,7 +80,7 @@ class TestTmuxSessionRouting:
         message = "test message"
         device_name = "non-existent-device"
         
-        with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+        with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
             with patch('os.environ.get') as mock_env_get:
                 # TMUX環境変数を設定
                 mock_env_get.return_value = '/tmp/tmux-1000/default,12345,0'
@@ -138,7 +139,7 @@ class TestTmuxSessionRouting:
         message = "test message"
         device_name = "push-tmux"
         
-        with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+        with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
             # has-sessionは呼ばれるが、config設定が優先される
             mock_has_session = AsyncMock()
             mock_has_session.returncode = 0
@@ -165,7 +166,7 @@ class TestTmuxSessionRouting:
         config = {}
         message = "test message"
         
-        with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+        with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
             with patch('os.environ.get') as mock_env_get:
                 # TMUX環境変数を設定
                 mock_env_get.return_value = '/tmp/tmux-1000/default,12345,0'
@@ -214,7 +215,7 @@ class TestTmuxSessionRouting:
         ]
         
         for device_name, message in test_cases:
-            with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+            with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
                 mock_has_session = AsyncMock()
                 mock_has_session.returncode = 0
                 mock_has_session.communicate.return_value = (b'', b'')
@@ -266,7 +267,7 @@ class TestIntegrationScenarios:
         
         # push-tmuxセッションが存在する場合のテスト
         if 'push-tmux' in sessions:
-            with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+            with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
                 # has-sessionは実際に呼ばれる
                 real_has_session = await asyncio.create_subprocess_exec(
                     'tmux', 'has-session', '-t', 'push-tmux',

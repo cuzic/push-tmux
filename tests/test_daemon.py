@@ -14,7 +14,10 @@ import toml
 # テストパス設定
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from push_tmux import load_config, save_config, setup_logging, log_daemon_event, daemon, cli
+from push_tmux import cli
+from push_tmux.config import load_config, save_config
+from push_tmux.logging import setup_logging, log_daemon_event
+from push_tmux.commands.daemon import daemon
 
 
 class TestDaemonConfig:
@@ -114,7 +117,7 @@ class TestDaemonLogging:
             if os.path.exists(log_file):
                 os.unlink(log_file)
     
-    @patch('push_tmux.click.echo')
+    @patch('click.echo')
     @patch('logging.getLogger')
     def test_log_daemon_event(self, mock_get_logger, mock_echo):
         """daemon イベントログのテスト"""
@@ -136,10 +139,10 @@ class TestDaemonLogging:
 class TestDaemonCommand:
     """daemon コマンドのテスト"""
     
-    @patch('push_tmux.setup_logging')
-    @patch('push_tmux.log_daemon_event')
+    @patch('push_tmux.logging.setup_logging')
+    @patch('push_tmux.logging.log_daemon_event')
     @patch('hupper.is_active')
-    @patch('push_tmux.asyncio.run')
+    @patch('asyncio.run')
     def test_daemon_worker_mode(self, mock_asyncio_run, mock_is_active, mock_log, mock_setup_logging):
         """ワーカーモードのテスト"""
         mock_is_active.return_value = True
@@ -152,8 +155,8 @@ class TestDaemonCommand:
         mock_log.assert_called()
         mock_asyncio_run.assert_called()
     
-    @patch('push_tmux.setup_logging')
-    @patch('push_tmux.log_daemon_event')
+    @patch('push_tmux.logging.setup_logging')
+    @patch('push_tmux.logging.log_daemon_event')
     @patch('hupper.is_active')
     @patch('hupper.start_reloader')
     def test_daemon_monitor_mode(self, mock_start_reloader, mock_is_active, mock_log, mock_setup_logging):
@@ -163,7 +166,7 @@ class TestDaemonCommand:
         mock_start_reloader.return_value = mock_reloader
         
         # worker_main内でKeyboardInterruptを発生させてテストを終了
-        with patch('push_tmux.asyncio.run', side_effect=KeyboardInterrupt):
+        with patch('asyncio.run', side_effect=KeyboardInterrupt):
             runner = CliRunner()
             result = runner.invoke(cli, ['daemon', '--debug', '--reload-interval', '2.0'])
             
@@ -178,7 +181,7 @@ class TestDaemonCommand:
         """カスタムオプション付きdaemonコマンドのテスト"""
         mock_is_active.return_value = True
         
-        with patch('push_tmux.asyncio.run') as mock_asyncio_run:
+        with patch('asyncio.run') as mock_asyncio_run:
             runner = CliRunner()
             result = runner.invoke(cli, [
                 'daemon', 
@@ -208,11 +211,11 @@ class TestDaemonIntegration:
             'debug': True
         }
         
-        with patch('push_tmux.setup_logging') as mock_setup_logging, \
-             patch('push_tmux.log_daemon_event') as mock_log, \
-             patch('push_tmux.asyncio.run', side_effect=KeyboardInterrupt) as mock_run:
+        with patch('push_tmux.logging.setup_logging') as mock_setup_logging, \
+             patch('push_tmux.logging.log_daemon_event') as mock_log, \
+             patch('asyncio.run', side_effect=KeyboardInterrupt) as mock_run:
             
-            from push_tmux import daemon_worker_main
+            from push_tmux.commands.daemon import daemon_worker_main
             daemon_worker_main()
             
             mock_setup_logging.assert_called()
@@ -224,7 +227,7 @@ class TestDaemonIntegration:
         with patch('push_tmux.setup_logging'), \
              patch('push_tmux.log_daemon_event') as mock_log, \
              patch('hupper.is_active', return_value=True), \
-             patch('push_tmux.asyncio.run', side_effect=Exception("テストエラー")):
+             patch('asyncio.run', side_effect=Exception("テストエラー")):
             
             runner = CliRunner()
             result = runner.invoke(cli, ['daemon'])

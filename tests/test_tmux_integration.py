@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from push_tmux import send_to_tmux
+from push_tmux.tmux import send_to_tmux
 
 
 class TestSendToTmux:
@@ -120,7 +120,7 @@ class TestSendToTmux:
             }
         }
         
-        with patch("push_tmux.asyncio.create_subprocess_exec") as mock_exec:
+        with patch("push_tmux.tmux.asyncio.create_subprocess_exec") as mock_exec:
             mock_exec.side_effect = FileNotFoundError()
             
             await send_to_tmux(config, "test message")
@@ -139,7 +139,7 @@ class TestSendToTmux:
             }
         }
         
-        with patch("push_tmux.asyncio.create_subprocess_exec") as mock_exec:
+        with patch("push_tmux.tmux.asyncio.create_subprocess_exec") as mock_exec:
             mock_exec.side_effect = Exception("Unexpected error")
             
             await send_to_tmux(config, "test message")
