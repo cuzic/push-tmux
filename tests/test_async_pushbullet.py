@@ -193,7 +193,7 @@ class TestAsyncPushbulletListener:
     async def test_run_keyboard_interrupt(self, listener):
         """キーボード割り込みのテスト"""
         with patch('websockets.connect', side_effect=KeyboardInterrupt):
-            await listener.run()  # 正常終了する
+            await asyncio.wait_for(listener.run(), timeout=1)  # タイムアウト付きで実行
     
     @pytest.mark.asyncio
     async def test_handle_tickle(self, listener):

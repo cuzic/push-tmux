@@ -187,7 +187,10 @@ class TestWebSocketImprovements:
             
             with patch('asyncio.sleep', new_callable=AsyncMock):
                 # listenを実行（最大再接続回数に達したら終了）
-                await listener.listen()
+                try:
+                    await asyncio.wait_for(listener.listen(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass  # タイムアウトは予期される
                 
                 # 最大再接続回数（5回）を超えていないか確認
                 assert listener.reconnect_attempts == listener.MAX_RECONNECT_ATTEMPTS

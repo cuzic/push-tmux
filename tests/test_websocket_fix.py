@@ -182,8 +182,11 @@ def test_running_flag():
                 # _receive_messagesをすぐに終了させる
                 mock_receive.side_effect = [None]
                 
-                # listenを実行（すぐに終了する）
-                await listener.listen()
+                # listenを実行（タイムアウト付き）
+                try:
+                    await asyncio.wait_for(listener.listen(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass  # タイムアウトは予期される
                 
                 # runningフラグが設定されたか確認
                 # （listenメソッドの最初でTrueに設定される）

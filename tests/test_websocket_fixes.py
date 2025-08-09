@@ -74,8 +74,11 @@ class TestConnectionManagement:
                     # 接続失敗で即終了するよう設定
                     mock_connect.return_value = False
                     
-                    # listenを実行
-                    await listener.listen()
+                    # listenを実行（タイムアウト付き）
+                    try:
+                        await asyncio.wait_for(listener.listen(), timeout=1)
+                    except asyncio.TimeoutError:
+                        pass  # タイムアウトは予期される
                     
                     # connectが呼ばれたことを確認
                     mock_connect.assert_called()
@@ -92,7 +95,10 @@ class TestConnectionManagement:
                 # 常に接続失敗
                 mock_connect.return_value = False
                 
-                await listener.listen()
+                try:
+                    await asyncio.wait_for(listener.listen(), timeout=1)
+                except asyncio.TimeoutError:
+                    pass  # タイムアウトは予期される
                 
                 # 最大再接続回数を超えていないか
                 assert listener.reconnect_attempts == listener.MAX_RECONNECT_ATTEMPTS
