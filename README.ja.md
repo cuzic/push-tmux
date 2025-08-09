@@ -104,9 +104,15 @@ DEVICE_NAME=my-project
 # target_pane = "0"         # 省略時は最初のペイン（デフォルト）
 
 [device_mapping]
-# デバイス名とtmuxセッションのマッピング
+# デバイス名とtmuxターゲットのマッピング
+# シンプルな指定（セッションのみ）
 "project-a" = "dev-session"    # project-aデバイス → dev-sessionセッション
-"1on1-ver2" = "work"          # 1on1-ver2デバイス → workセッション
+
+# 詳細な指定（セッション、ウィンドウ、ペイン）
+[device_mapping."mobile-app"]
+session = "frontend"    # セッション名（必須）
+window = "2"           # ウィンドウインデックス（省略時は "first"）
+pane = "0"            # ペインインデックス（省略時は "first"）
 
 [daemon]
 reload_interval = 1.0       # ファイル監視間隔（秒）
@@ -200,9 +206,19 @@ push-tmux daemon  # project-b宛のメッセージのみ受信（自動再起動
 ```toml
 # config.toml
 [device_mapping]
+# シンプルな指定（セッションのみ）
 "mobile-dev" = "frontend"      # mobile-devデバイス → frontendセッション
-"backend-api" = "backend"       # backend-apiデバイス → backendセッション
-"db-admin" = "database"         # db-adminデバイス → databaseセッション
+
+# 詳細な指定（特定のウィンドウ・ペインを指定）
+[device_mapping."backend-api"]
+session = "backend"
+window = "1"        # 2番目のウィンドウ（インデックス1）
+pane = "2"         # 3番目のペイン（インデックス2）
+
+[device_mapping."db-admin"]
+session = "database"
+window = "first"    # 最初のウィンドウ（デフォルト）
+pane = "first"     # 最初のペイン（デフォルト）
 ```
 
 ```bash
@@ -212,6 +228,12 @@ cd ~/projects/mobile-app
 export DEVICE_NAME=mobile-dev
 push-tmux register
 push-tmux listen  # mobile-dev宛のメッセージをfrontendセッションで受信
+
+# backend-apiの場合、backendセッションのwindow 1, pane 2に送信される
+cd ~/projects/api
+export DEVICE_NAME=backend-api
+push-tmux register
+push-tmux listen  # メッセージが特定のウィンドウ・ペインに送信される
 ```
 
 ### 自動ルーティングモード（NEW!）

@@ -19,7 +19,7 @@ class TestDeviceMapping:
     
     @pytest.mark.asyncio
     async def test_device_mapping_with_existing_session(self, mock_subprocess):
-        """マッピングされたセッションが存在する場合"""
+        """マッピングされたセッションが存在する場合（文字列形式）"""
         config = {
             "device_mapping": {
                 "mobile-dev": "frontend"
@@ -50,6 +50,93 @@ class TestDeviceMapping:
         send_calls = [call for call in mock_subprocess.call_args_list if 'send-keys' in call[0]]
         assert len(send_calls) == 2  # メッセージとEnterキー
         assert "frontend:0.0" in send_calls[0][0][3]  # マップされたセッション名が使用される
+    
+    @pytest.mark.asyncio
+    async def test_device_mapping_with_detailed_format(self, mock_subprocess):
+        """詳細なマッピング形式（セッション、ウィンドウ、ペイン指定）"""
+        config = {
+            "device_mapping": {
+                "backend-api": {
+                    "session": "backend",
+                    "window": "2",
+                    "pane": "1"
+                }
+            }
+        }
+        
+        # has-sessionが成功を返す
+        async def mock_exec(*args, **kwargs):
+            if 'has-session' in args:
+                result = MagicMock()
+                result.returncode = 0
+                async def communicate():
+                    return (b'', b'')
+                result.communicate = communicate
+                return result
+            else:
+                process = MagicMock()
+                async def async_wait():
+                    return None
+                process.wait = async_wait
+                return process
+        
+        mock_subprocess.side_effect = mock_exec
+        
+        await send_to_tmux(config, "test message", device_name="backend-api")
+        
+        # send-keysコマンドが実行される
+        send_calls = [call for call in mock_subprocess.call_args_list if 'send-keys' in call[0]]
+        assert len(send_calls) == 2
+        assert "backend:2.1" in send_calls[0][0][3]  # セッション:ウィンドウ.ペイン
+    
+    @pytest.mark.asyncio
+    async def test_device_mapping_with_first_defaults(self, mock_subprocess):
+        """詳細形式でウィンドウ・ペインを省略（firstがデフォルト）"""
+        config = {
+            "device_mapping": {
+                "test-device": {
+                    "session": "test-session"
+                    # windowとpaneは省略 → "first"がデフォルト
+                }
+            }
+        }
+        
+        # has-sessionとlist-windows、list-panesが成功を返す
+        async def mock_exec(*args, **kwargs):
+            if 'has-session' in args:
+                result = MagicMock()
+                result.returncode = 0
+                async def communicate():
+                    return (b'', b'')
+                result.communicate = communicate
+                return result
+            elif 'list-windows' in args:
+                result = MagicMock()
+                async def communicate():
+                    return (b'0\n1\n2\n', b'')  # ウィンドウ0が最初
+                result.communicate = communicate
+                return result
+            elif 'list-panes' in args:
+                result = MagicMock()
+                async def communicate():
+                    return (b'0\n1\n', b'')  # ペイン0が最初
+                result.communicate = communicate
+                return result
+            else:
+                process = MagicMock()
+                async def async_wait():
+                    return None
+                process.wait = async_wait
+                return process
+        
+        mock_subprocess.side_effect = mock_exec
+        
+        await send_to_tmux(config, "test message", device_name="test-device")
+        
+        # send-keysコマンドが実行される
+        send_calls = [call for call in mock_subprocess.call_args_list if 'send-keys' in call[0]]
+        assert len(send_calls) == 2
+        assert "test-session:0.0" in send_calls[0][0][3]  # 最初のウィンドウ・ペイン
     
     @pytest.mark.asyncio
     async def test_device_mapping_with_missing_session(self, mock_subprocess):
@@ -225,11 +312,13 @@ def test_summary():
 ============================================================
 以下の機能をテストします:
 1. device_mappingセクションでのマッピング設定
-2. マッピングされたセッションが存在する場合の動作
-3. マッピングされたセッションが存在しない場合のフォールバック
-4. デバイス名をデフォルトセッション名として使用
-5. 優先順位の確認（明示的設定 > マッピング > デバイス名）
-6. エラー処理とメッセージ表示
+2. 文字列形式のマッピング（セッションのみ指定）
+3. 詳細形式のマッピング（セッション、ウィンドウ、ペイン指定）
+4. デフォルト値の適用（ウィンドウ・ペインは"first"）
+5. マッピングされたセッションが存在しない場合のフォールバック
+6. デバイス名をデフォルトセッション名として使用
+7. 優先順位の確認（明示的設定 > マッピング > デバイス名）
+8. エラー処理とメッセージ表示
 ============================================================
 
 実行コマンド:

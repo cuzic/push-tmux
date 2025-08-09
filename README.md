@@ -104,9 +104,15 @@ Customize detailed behavior with the configuration file. See `config-example.tom
 # target_pane = "0"         # Defaults to first pane if omitted
 
 [device_mapping]
-# Device name to tmux session mapping
+# Device name to tmux target mapping
+# Simple format (session only)
 "project-a" = "dev-session"    # project-a device → dev-session
-"1on1-ver2" = "work"          # 1on1-ver2 device → work session
+
+# Detailed format (session, window, pane)
+[device_mapping."mobile-app"]
+session = "frontend"    # Session name (required)
+window = "2"           # Window index (defaults to "first")
+pane = "0"            # Pane index (defaults to "first")
 
 [daemon]
 reload_interval = 1.0       # File watch interval (seconds)
@@ -200,9 +206,19 @@ When you want to use different device names and tmux session names:
 ```toml
 # config.toml
 [device_mapping]
+# Simple format (session only)
 "mobile-dev" = "frontend"      # mobile-dev device → frontend session
-"backend-api" = "backend"       # backend-api device → backend session
-"db-admin" = "database"         # db-admin device → database session
+
+# Detailed format (specify window and pane)
+[device_mapping."backend-api"]
+session = "backend"
+window = "1"        # Second window (index 1)
+pane = "2"         # Third pane (index 2)
+
+[device_mapping."db-admin"]
+session = "database"
+window = "first"    # First window (default)
+pane = "first"     # First pane (default)
 ```
 
 ```bash
@@ -212,6 +228,12 @@ cd ~/projects/mobile-app
 export DEVICE_NAME=mobile-dev
 push-tmux register
 push-tmux listen  # Receives mobile-dev messages in frontend session
+
+# For backend-api, messages go to backend session window 1, pane 2
+cd ~/projects/api
+export DEVICE_NAME=backend-api
+push-tmux register
+push-tmux listen  # Messages sent to specific window/pane
 ```
 
 ### Auto-routing Mode (NEW!)

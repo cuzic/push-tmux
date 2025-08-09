@@ -182,6 +182,8 @@ async def send_to_tmux(config, message, device_name=None):
     
     # ターゲットセッションを決定
     target_session = None
+    mapped_window = None  # マッピングで指定されたウィンドウ
+    mapped_pane = None    # マッピングで指定されたペイン
     
     # 優先順位: 
     # 1. tmux.target_sessionの明示的な設定
@@ -197,22 +199,40 @@ async def send_to_tmux(config, message, device_name=None):
     elif device_name:
         # まずdevice_mappingを確認
         if device_name in device_mapping:
-            mapped_session = device_mapping[device_name]
+            mapping = device_mapping[device_name]
+            
+            # マッピングが文字列の場合（セッションのみ指定）
+            if isinstance(mapping, str):
+                mapped_session = mapping
+            # マッピングが辞書の場合（詳細指定）
+            elif isinstance(mapping, dict):
+                mapped_session = mapping.get('session')
+                mapped_window = mapping.get('window')  # ウィンドウも取得
+                mapped_pane = mapping.get('pane')      # ペインも取得
+            else:
+                mapped_session = None
+            
             # マップされたセッションが存在するか確認
-            try:
-                result = await asyncio.create_subprocess_exec(
-                    'tmux', 'has-session', '-t', mapped_session,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                await result.communicate()
-                if result.returncode == 0:
-                    target_session = mapped_session
-                    click.echo(f"デバイス '{device_name}' のマッピング設定に従い、tmuxセッション '{mapped_session}' を使用します。")
-                else:
-                    click.echo(f"警告: マッピングされたtmuxセッション '{mapped_session}' が存在しません。デフォルトに戻ります。")
-            except:
-                pass
+            if mapped_session:
+                try:
+                    result = await asyncio.create_subprocess_exec(
+                        'tmux', 'has-session', '-t', mapped_session,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await result.communicate()
+                    if result.returncode == 0:
+                        target_session = mapped_session
+                        click.echo(f"デバイス '{device_name}' のマッピング設定に従い、tmuxセッション '{mapped_session}' を使用します。")
+                        # ウィンドウとペインの設定も使用
+                        if mapped_window is not None:
+                            window_setting = mapped_window
+                        if mapped_pane is not None:
+                            pane_setting = mapped_pane
+                    else:
+                        click.echo(f"警告: マッピングされたtmuxセッション '{mapped_session}' が存在しません。デフォルトに戻ります。")
+                except:
+                    pass
         
         # マッピングがない、またはマップされたセッションが存在しない場合
         if target_session is None:

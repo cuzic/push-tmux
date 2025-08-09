@@ -8,12 +8,33 @@
 # target_pane = "first"       # 省略時は最初のペイン（デフォルト）、または特定のペインインデックスを指定
 
 [device_mapping]
-# デバイス名とtmuxセッションのマッピング設定
-# デバイス名をキーとして、対応するtmuxセッション名を指定
+# デバイス名とtmuxターゲットのマッピング設定
+# デバイス名をキーとして、対応するtmuxセッション/ウィンドウ/ペインを指定
+# 
+# 設定形式:
+# 1. 文字列形式（セッションのみ指定）:
+#    "device-name" = "session-name"
+# 
+# 2. テーブル形式（詳細指定）:
+#    [device_mapping."device-name"]
+#    session = "session-name"  # 必須
+#    window = "0"              # 省略時は "first"
+#    pane = "1"                # 省略時は "first"
+# 
 # 例:
-# "project-a" = "dev-session"        # project-aデバイスのメッセージをdev-sessionに送信
-# "mobile-app" = "mobile-session"    # mobile-appデバイスのメッセージをmobile-sessionに送信
-# "1on1-ver2" = "work"               # 1on1-ver2デバイスのメッセージをworkセッションに送信
+# # シンプルな指定（セッションのみ）
+# "project-a" = "dev-session"
+# 
+# # 詳細な指定
+# [device_mapping."mobile-app"]
+# session = "frontend"
+# window = "2"
+# pane = "0"
+# 
+# [device_mapping."1on1-ver2"]
+# session = "work"
+# window = "first"  # または省略（デフォルトは "first"）
+# pane = "first"    # または省略（デフォルトは "first"）
 
 [daemon]
 # デーモンモード設定
