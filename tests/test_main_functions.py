@@ -3,15 +3,18 @@
 メイン機能のテスト（カバレッジ向上）
 """
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-import json
+from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from asyncpushbullet import AsyncPushbullet, LiveStreamListener
+try:
+    from asyncpushbullet import AsyncPushbullet, LiveStreamListener
+    AsyncPushbulletListener = LiveStreamListener  # Alias for compatibility
+except ImportError:
+    AsyncPushbullet = None
+    AsyncPushbulletListener = None
 
 
 @pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため無効化")
@@ -198,7 +201,7 @@ class TestAsyncPushbulletEdgeCases:
         with patch.object(pb, '_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_response
             
-            result = await pb.get_pushes(
+            await pb.get_pushes(
                 modified_after=1234567890,
                 limit=50,
                 active=False
@@ -220,7 +223,7 @@ class TestAsyncPushbulletEdgeCases:
         with patch.object(pb, '_request', new_callable=AsyncMock) as mock_request:
             mock_request.return_value = mock_response
             
-            result = await pb.create_device("Test Device", model="custom-model")
+            await pb.create_device("Test Device", model="custom-model")
             
             # カスタムモデルが使用された
             call_args = mock_request.call_args

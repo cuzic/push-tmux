@@ -3,11 +3,10 @@
 daemon機能のテスト
 """
 import pytest
-import asyncio
 import os
 import tempfile
 import logging
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 import sys
 import toml
@@ -16,9 +15,8 @@ import toml
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from push_tmux import cli
-from push_tmux.config import load_config, save_config
+from push_tmux.config import load_config
 from push_tmux.logging import setup_logging, log_daemon_event
-from push_tmux.commands.daemon import daemon
 
 
 class TestDaemonConfig:
@@ -39,7 +37,7 @@ class TestDaemonConfig:
         # ログ設定の確認
         assert 'logging' in daemon_config
         logging_config = daemon_config['logging']
-        assert logging_config['enable_reload_logs'] == True
+        assert logging_config['enable_reload_logs']
         assert logging_config['log_level'] == 'INFO'
     
     def test_config_merge(self):
@@ -156,7 +154,7 @@ class TestDaemonCommand:
         
         with patch('time.sleep', side_effect=KeyboardInterrupt):
             runner = CliRunner()
-            result = runner.invoke(cli, ['daemon', '--auto-route'])
+            runner.invoke(cli, ['daemon', '--auto-route'])
         
         # daemonコマンドではsetup_loggingとlog_daemon_eventが呼ばれる
         mock_setup_logging.assert_called()
@@ -178,7 +176,7 @@ class TestDaemonCommand:
         # time.sleepでKeyboardInterruptを発生させてテストを終了
         with patch('time.sleep', side_effect=KeyboardInterrupt):
             runner = CliRunner()
-            result = runner.invoke(cli, ['daemon', '--debug', '--reload-interval', '2.0'])
+            runner.invoke(cli, ['daemon', '--debug', '--reload-interval', '2.0'])
             
             mock_setup_logging.assert_called()
             mock_observer.start.assert_called()
@@ -198,7 +196,7 @@ class TestDaemonCommand:
         
         with patch('time.sleep', side_effect=KeyboardInterrupt):
             runner = CliRunner()
-            result = runner.invoke(cli, [
+            runner.invoke(cli, [
                 'daemon', 
                 '--device', 'test-device',
                 '--reload-interval', '5.0',
@@ -245,7 +243,7 @@ class TestDaemonIntegration:
             
             with patch('time.sleep', side_effect=[None, KeyboardInterrupt]):
                 runner = CliRunner()
-                result = runner.invoke(cli, ['daemon'])
+                runner.invoke(cli, ['daemon'])
             
             # エラーログが記録されることを確認
             mock_log.assert_called()

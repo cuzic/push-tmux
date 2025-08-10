@@ -3,17 +3,13 @@
 push_tmux.pyの追加テスト（カバレッジ向上用）
 """
 import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 from click.testing import CliRunner
 import os
-import tempfile
-import toml
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import push_tmux
 from push_tmux import cli
 from push_tmux.config import load_config, save_config, get_device_name, CONFIG_FILE
 from push_tmux.tmux import send_to_tmux
@@ -149,7 +145,7 @@ class TestSendKeyCommand:
         """設定を更新してsend-key実行"""
         with patch('push_tmux.commands.send_key.load_config', return_value={}):
             with patch('push_tmux.commands.send_key.send_to_tmux', new_callable=AsyncMock) as mock_send:
-                result = runner.invoke(cli, ['send-key', 'test', 
+                runner.invoke(cli, ['send-key', 'test', 
                                             '--session', 'my_session',
                                             '--window', '2',
                                             '--pane', '1'])
