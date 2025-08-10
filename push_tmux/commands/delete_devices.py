@@ -44,7 +44,7 @@ async def _delete_single_device(api_key, name, device_id, yes):
             
             # 削除確認
             if not yes:
-                click.echo(f"\nデバイス情報:")
+                click.echo("\nデバイス情報:")
                 click.echo(f"  名前: {_get_device_attr(target_device, 'nickname') or 'N/A'}")
                 click.echo(f"  ID: {_get_device_attr(target_device, 'iden')}")
                 click.echo(f"  作成日時: {_get_device_attr(target_device, 'created') or 'N/A'}")
@@ -55,7 +55,7 @@ async def _delete_single_device(api_key, name, device_id, yes):
             
             # デバイス削除実行
             device_iden = _get_device_attr(target_device, 'iden')
-            await pb.delete_device(device_iden)
+            await pb.async_remove_device(target_device)
             click.echo(f"デバイス '{_get_device_attr(target_device, 'nickname') or 'N/A'}' (ID: {device_iden}) を削除しました。")
             
         except Exception as e:
@@ -92,8 +92,7 @@ async def _delete_multiple_devices(pb, selected_devices):
     success_count = 0
     for device in selected_devices:
         try:
-            device_iden = _get_device_attr(device, 'iden')
-            await pb.delete_device(device_iden)
+            await pb.async_remove_device(device)
             click.echo(f"✓ {_get_device_attr(device, 'nickname') or 'N/A'} を削除しました")
             success_count += 1
         except Exception as e:

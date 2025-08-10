@@ -34,7 +34,7 @@ def register(name):
                     click.echo(f"デバイスID: {_get_device_attr(existing_device, 'iden')}")
                     return
                 
-                device = await pb.create_device(device_name)
+                device = await pb.async_new_device(device_name)
                 click.echo(f"デバイス '{device_name}' を登録しました。")
                 click.echo(f"デバイスID: {_get_device_attr(device, 'iden')}")
                 

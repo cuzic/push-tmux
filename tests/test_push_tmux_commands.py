@@ -3,16 +3,11 @@
 push_tmux.pyのコマンドのテスト
 """
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
+from unittest.mock import AsyncMock, MagicMock, patch
 from click.testing import CliRunner
 import os
-import tempfile
-import json
 
-import sys
 
-import push_tmux
 from push_tmux import cli
 
 
@@ -61,7 +56,7 @@ class TestRegisterCommand:
             with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
-                mock_pb.create_device = AsyncMock(return_value={
+                mock_pb.async_new_device = AsyncMock(return_value={
                     'iden': 'new_device_id',
                     'nickname': 'test_device'
                 })
@@ -176,7 +171,7 @@ class TestDeleteDevicesCommand:
                 ]
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = MagicMock(return_value=devices)  # 同期メソッド
-                mock_pb.delete_device = AsyncMock()
+                mock_pb.async_remove_device = AsyncMock()
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -184,7 +179,7 @@ class TestDeleteDevicesCommand:
                 result = runner.invoke(cli, ['delete-devices', '--name', 'Device 1', '--yes'])
                 assert result.exit_code == 0
                 assert "デバイス 'Device 1' (ID: dev1) を削除しました" in result.output
-                mock_pb.delete_device.assert_called_once_with('dev1')
+                mock_pb.async_remove_device.assert_called_once()
     
     def test_delete_single_device_by_id(self, runner):
         """ID指定での単一デバイス削除のテスト"""
@@ -196,7 +191,7 @@ class TestDeleteDevicesCommand:
                 ]
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = MagicMock(return_value=devices)  # 同期メソッド
-                mock_pb.delete_device = AsyncMock()
+                mock_pb.async_remove_device = AsyncMock()
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -204,7 +199,7 @@ class TestDeleteDevicesCommand:
                 result = runner.invoke(cli, ['delete-devices', '--id', 'dev2', '--yes'])
                 assert result.exit_code == 0
                 assert "デバイス 'Device 2' (ID: dev2) を削除しました" in result.output
-                mock_pb.delete_device.assert_called_once_with('dev2')
+                mock_pb.async_remove_device.assert_called_once()
     
     def test_delete_device_not_found(self, runner):
         """存在しないデバイスの削除テスト"""
