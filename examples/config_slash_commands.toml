@@ -1,0 +1,46 @@
+[tmux]
+use_device_name_as_session = true
+enter_delay = 1.0
+
+# Slash commands configuration
+[slash_commands.deploy]
+# Template with placeholders for arguments
+template = "cd /app && git checkout {branch} && docker-compose up -d {service}"
+# Default values for optional arguments
+defaults = { branch = "main", service = "all" }
+# Optional: restrict to specific devices
+allowed_devices = ["production-server", "staging-server"]
+# Optional: specify target tmux session
+target_session = "deploy"
+
+[slash_commands.test]
+template = "pytest {path} -v {options}"
+defaults = { path = ".", options = "" }
+execute_once = true  # Execute only once per session
+
+[slash_commands.build]
+template = "npm run build -- --env={env} --target={target}"
+defaults = { env = "production", target = "web" }
+
+[slash_commands.restart]
+template = "sudo systemctl restart {service}"
+defaults = { service = "nginx" }
+allowed_devices = ["server"]
+
+[slash_commands.log]
+template = "tail -f {file} | grep {filter}"
+defaults = { file = "/var/log/app.log", filter = "ERROR" }
+target_session = "monitoring"
+
+[slash_commands.ssh]
+template = "ssh {user}@{host} -p {port}"
+defaults = { user = "admin", port = "22" }
+
+[slash_commands.backup]
+template = "pg_dump {database} > backup_{database}_{timestamp}.sql"
+defaults = { database = "myapp", timestamp = "$(date +%Y%m%d_%H%M%S)" }
+execute_once = true
+
+[slash_commands.notify]
+template = "echo '{message}' | mail -s '{subject}' {email}"
+defaults = { subject = "Notification", email = "admin@example.com", message = "Task completed" }

@@ -10,6 +10,7 @@ from asyncpushbullet import AsyncPushbullet, LiveStreamListener
 from ..config import load_config, get_device_name
 from ..device import _resolve_target_device, _find_device_by_name_or_id, _resolve_specific_device, _resolve_default_device, _get_device_attr
 from ..tmux import send_to_tmux
+from ..slash_commands import expand_slash_command, check_trigger_conditions
 
 
 async def _display_auto_route_devices(api_key):
@@ -91,7 +92,18 @@ def _create_auto_route_handler(api_key, config):
             if await _check_session_exists(device_name):
                 message = push.get('body', '')
                 if message:
-                    await send_to_tmux(config, message, device_name)
+                    # Check if it's a slash command
+                    is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
+                    
+                    if is_slash:
+                        if expanded_cmd and check_trigger_conditions(message.split()[0][1:], config):
+                            # Execute the expanded command
+                            final_target = target_session or device_name
+                            await send_to_tmux(config, expanded_cmd, final_target)
+                            click.echo(f"Executed slash command: {message.split()[0]} for device '{device_name}'")
+                    else:
+                        # Regular message
+                        await send_to_tmux(config, message, device_name)
             else:
                 click.echo(f"対応するtmuxセッション '{device_name}' が見つかりません。")
     
@@ -115,7 +127,18 @@ def _create_specific_device_handler(config, target_device_iden, device_name):
         
         message = push.get('body', '')
         if message:
-            await send_to_tmux(config, message, device_name)
+            # Check if it's a slash command
+            is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
+            
+            if is_slash:
+                if expanded_cmd and check_trigger_conditions(message.split()[0][1:], config):
+                    # Execute the expanded command
+                    final_target = target_session or device_name
+                    await send_to_tmux(config, expanded_cmd, final_target)
+                    click.echo(f"Executed slash command: {message.split()[0]}")
+            else:
+                # Regular message
+                await send_to_tmux(config, message, device_name)
     
     return on_push
 
