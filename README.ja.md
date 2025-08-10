@@ -9,14 +9,32 @@ push-tmuxは、Pushbulletで受信したメッセージを自動的にtmuxセッ
 ### 主な機能
 
 - 📱 **デバイス別メッセージルーティング** - プロジェクトごとに異なるデバイスを使用
-- 🔄 **自動再起動デーモンモード** - プロセス監視と異常終了時の自動復旧（NEW!）
+- 🔄 **自動再起動デーモンモード** - プロセス監視と異常終了時の自動復旧
 - 🎯 **自動ルーティング** - デバイス名と同じtmuxセッションへ自動送信
 - 📝 **詳細なログ機能** - デバッグとトラブルシューティング支援
 - ⚙️ **柔軟な設定** - TOML形式での詳細設定
+- 🚀 **モジュール化アーキテクチャ** - パッケージ構造による保守性向上
+- 📦 **標準ライブラリ使用** - asyncpushbulletなど信頼性の高い外部ライブラリを活用
 
 ## 主な使用方法
 
-### ディレクトリベースのワークフロー
+### 1. クイックスタート
+
+```bash
+# 1. Python環境セットアップ
+mise trust && mise install
+
+# 2. デバイス登録
+push-tmux register
+
+# 3. tmuxセッション開始
+tmux new-session -s $(basename $(pwd))
+
+# 4. リスナー開始
+push-tmux listen
+```
+
+### 2. ディレクトリベースのワークフロー
 
 特定のプロジェクトディレクトリ（例：`1on1-ver2`）で作業する場合の推奨フローです。
 
@@ -134,30 +152,42 @@ push-tmux register --name custom-device
 # デバイス一覧を表示
 push-tmux list-devices
 
-# デバイスを削除
-push-tmux delete-device --name device-name
-push-tmux delete-device --id device-id
+# デバイスを削除（インタラクティブ選択）
+push-tmux delete-devices
+
+# 特定デバイスを削除
+push-tmux delete-devices --name device-name
+push-tmux delete-devices --id device-id
+
+# 非アクティブデバイスも含めて削除
+push-tmux delete-devices --include-inactive
 ```
 
 ### メッセージ受信
 ```bash
-# 現在のデバイス名で受信待機（従来の方法）
+# 現在のデバイス名で受信待機
 push-tmux listen
 
 # 特定のデバイスとして受信待機
 push-tmux listen --device other-device
 
+# 全デバイスからのメッセージを受信
+push-tmux listen --all-devices
+
+# 自動ルーティングモード
+push-tmux listen --auto-route
+
 # デバッグモードで実行
 push-tmux listen --debug
-
-# 自動ルーティングモード（NEW!）
-push-tmux listen --auto-route
 ```
 
-### デーモンモード（NEW!）
+### デーモンモード
 ```bash
 # デーモンモードで実行（自動再起動機能付き）
 push-tmux daemon
+
+# 全デバイスからのメッセージを受信
+push-tmux daemon --all-devices
 
 # 自動ルーティング付きデーモン
 push-tmux daemon --auto-route
@@ -236,7 +266,7 @@ push-tmux register
 push-tmux listen  # メッセージが特定のウィンドウ・ペインに送信される
 ```
 
-### 自動ルーティングモード（NEW!）
+### 自動ルーティングモード
 
 複数のプロジェクトを同時に扱う場合に便利です：
 
@@ -354,18 +384,24 @@ WantedBy=multi-user.target
 git clone https://github.com/cuzic/push-tmux.git
 cd push-tmux
 
-# 依存関係をインストール（uv推奨）
-uv pip install -e .
+# mise環境のセットアップ（Python 3.12と依存関係を自動インストール）
+mise trust
+mise install
 
-# または pip
-pip install -e .
+# 開発用依存関係のインストール
+uv pip install -e ".[test]"
+
+# 通常のインストール
+uv pip install -e .
 ```
 
 ## 必要要件
 
-- Python 3.10以上
+- Python 3.12以上（mise設定）
 - tmux
 - Pushbullet アカウントとAPIキー
+- mise（Python環境管理）
+- uv（高速パッケージマネージャー）
 
 ## セキュリティ
 
