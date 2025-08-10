@@ -9,16 +9,34 @@ push-tmux is a tool that automatically sends messages received via Pushbullet to
 ### Key Features
 
 - 📱 **Device-based Message Routing** - Use different devices for each project
-- 🔄 **Auto-restart Daemon Mode** - Process monitoring and automatic recovery on failure (NEW!)
+- 🔄 **Auto-restart Daemon Mode** - Process monitoring and automatic recovery on failure
 - 🎯 **Auto-routing** - Automatically send messages to tmux sessions with matching device names
 - 📝 **Detailed Logging** - Support for debugging and troubleshooting
 - ⚙️ **Flexible Configuration** - Detailed configuration in TOML format
+- 🚀 **Modular Architecture** - Improved maintainability with package structure
+- 📦 **Standard Libraries** - Uses reliable external libraries like asyncpushbullet
 
 ## Quick Start
 
-### Directory-based Workflow
+### 1. Quick Setup
 
-The recommended workflow when working on a specific project directory (e.g., `1on1-ver2`).
+```bash
+# 1. Python environment setup
+mise trust && mise install
+
+# 2. Register devices (multiple devices can be registered)
+push-tmux register  # Registers device with current directory name
+
+# 3. Create tmux sessions (with same names as registered devices)
+tmux new-session -s device-name -d  # Can create multiple
+
+# 4. Start listener (automatically handles all devices)
+push-tmux listen  # Auto-routing mode is default
+```
+
+### 2. Directory-based Workflow
+
+The recommended workflow when working on a specific project directory (e.g., `webapp`).
 
 #### 1. Navigate to Project Directory
 ```bash
@@ -51,35 +69,38 @@ tmux new-session -s webapp
 tmux attach -t webapp
 ```
 
-#### 5. Start Listening in tmux
+#### 5. Start Listener
 ```bash
-# Run inside tmux session (traditional method)
+# Default: Auto-routing mode (handles all devices' messages)
 push-tmux listen
-# => Listening as device 'webapp' (ID: xxx).
+# => Starting in auto-routing mode
 
-# Or run in daemon mode (recommended)
+# To receive only specific device's messages
+push-tmux listen --no-auto-route
+# => Listening as device 'webapp' (ID: xxx)
+
+# Run in daemon mode (recommended, with auto-restart)
 push-tmux daemon
-# => Running with auto-restart capability
+# => Running in auto-routing mode as daemon
 ```
 
 #### 6. Send Messages
-Send a message to the "webapp" device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the first window/first pane of the current tmux session.
+Send a message to any registered device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the corresponding tmux session.
 
 ## How It Works
 
 1. **Device Identification**: Different device names for each directory enable per-project message routing
-2. **Message Filtering**: Ignores broadcast messages, processes only device-specific messages
-3. **tmux Integration**: Received messages are automatically sent to the current tmux session
+2. **Message Filtering**: Processes device-specific messages and routes them appropriately
+3. **tmux Integration**: Received messages are automatically sent to the corresponding tmux session
 
-### Default Behavior
+### Session Resolution Priority
 
-- **Target Session**: 
-  1. Explicit setting in `config.toml` `[tmux].target_session` (highest priority)
-  2. Mapping configuration in `[device_mapping]` section
-  3. tmux session with same name as device name (default)
-  4. Current tmux session (when run inside tmux)
-- **Target Window**: First window in the session (by index order, default)
-- **Target Pane**: First pane in the window (by index order, default)
+The tmux session is determined in the following order:
+
+1. **`[device_mapping]` explicit mapping** (highest priority)
+2. **Device name matching** (when `use_device_name_as_session=true`, default)
+3. **`default_target_session` setting** (fallback)
+4. **Current tmux session** (last resort)
 
 ## Configuration
 
@@ -95,32 +116,27 @@ DEVICE_NAME=my-project
 
 ### config.toml (Optional)
 
-Customize detailed behavior with the configuration file. See `config-example.toml` for reference.
+Customize detailed behavior with the configuration file. See `config.toml.example` for reference.
 
 ```toml
 [tmux]
-# target_session = "main"   # Defaults to session with same name as device
-# target_window = "1"       # Defaults to first window if omitted
-# target_pane = "0"         # Defaults to first pane if omitted
+use_device_name_as_session = true  # Use tmux session with same name as device (default: true)
+# default_target_session = "main"   # Fallback default session name
+# target_window = "1"               # Window index (defaults to first window)
+# target_pane = "0"                 # Pane index (defaults to first pane)
+enter_delay = 0.5                   # Delay before sending Enter key (seconds)
 
 [device_mapping]
-# Device name to tmux target mapping
-# Simple format (session only)
-"project-a" = "dev-session"    # project-a device → dev-session
+# Device name to tmux session mappings
 
-# Detailed format (session, window, pane)
-[device_mapping."mobile-app"]
-session = "frontend"    # Session name (required)
-window = "2"           # Window index (defaults to "first")
-pane = "0"            # Pane index (defaults to "first")
+# Simple mapping (session only)
+"mobile-dev" = "frontend"      # mobile-dev device → frontend session
 
-[daemon]
-reload_interval = 1.0       # File watch interval (seconds)
-watch_files = ["config.toml", ".env"]  # Files to watch
-
-[daemon.logging]
-log_level = "INFO"          # Log level
-log_file = ""              # Log file path (empty for stdout)
+# Detailed mapping (session, window, pane)
+[device_mapping."backend-api"]
+session = "backend"
+window = "1"        # Second window (index 1)
+pane = "2"         # Third pane (index 2)
 ```
 
 ## Commands
@@ -134,35 +150,44 @@ push-tmux register --name custom-device
 # List devices
 push-tmux list-devices
 
-# Delete device
-push-tmux delete-device --name device-name
-push-tmux delete-device --id device-id
+# Delete devices (interactive selection)
+push-tmux delete-devices
+
+# Delete specific device
+push-tmux delete-devices --name device-name
+push-tmux delete-devices --id device-id
 ```
 
 ### Message Reception
 ```bash
-# Listen with current device name (traditional method)
+# Default: Auto-routing mode (handles all devices)
 push-tmux listen
+
+# Receive only current device's messages
+push-tmux listen --no-auto-route
 
 # Listen as specific device
 push-tmux listen --device other-device
 
-# Run in debug mode
-push-tmux listen --debug
+# Receive all devices' messages (no routing)
+push-tmux listen --all-devices
 
-# Auto-routing mode (NEW!)
-push-tmux listen --auto-route
+# Debug mode
+push-tmux listen --debug
 ```
 
-### Daemon Mode (NEW!)
+### Daemon Mode
 ```bash
-# Run in daemon mode (with auto-restart)
+# Default: Auto-routing daemon mode
 push-tmux daemon
 
-# Daemon with auto-routing
-push-tmux daemon --auto-route
+# Daemon for current device only
+push-tmux daemon --no-auto-route
 
-# Custom watch interval
+# Receive all devices' messages
+push-tmux daemon --all-devices
+
+# Custom reload interval
 push-tmux daemon --reload-interval 5.0
 
 # Watch additional files
@@ -172,7 +197,7 @@ push-tmux daemon --watch-files myconfig.ini --watch-files secrets.env
 push-tmux daemon --debug
 ```
 
-### Testing
+### Test
 ```bash
 # Send message directly to tmux (for testing)
 push-tmux send-key "test message"
@@ -181,7 +206,7 @@ push-tmux send-key "test" --session mysession --window 0 --pane 1
 
 ## Practical Examples
 
-### Per-Project Setup
+### Multi-Project Setup
 
 ```bash
 # Project A
@@ -199,58 +224,47 @@ tmux new -s project-b
 push-tmux daemon  # Receives only project-b messages (with auto-restart)
 ```
 
-### Device Mapping Example
-
-When you want to use different device names and tmux session names:
-
-```toml
-# config.toml
-[device_mapping]
-# Simple format (session only)
-"mobile-dev" = "frontend"      # mobile-dev device → frontend session
-
-# Detailed format (specify window and pane)
-[device_mapping."backend-api"]
-session = "backend"
-window = "1"        # Second window (index 1)
-pane = "2"         # Third pane (index 2)
-
-[device_mapping."db-admin"]
-session = "database"
-window = "first"    # First window (default)
-pane = "first"     # First pane (default)
-```
-
-```bash
-# Working in frontend session
-tmux new -s frontend
-cd ~/projects/mobile-app
-export DEVICE_NAME=mobile-dev
-push-tmux register
-push-tmux listen  # Receives mobile-dev messages in frontend session
-
-# For backend-api, messages go to backend session window 1, pane 2
-cd ~/projects/api
-export DEVICE_NAME=backend-api
-push-tmux register
-push-tmux listen  # Messages sent to specific window/pane
-```
-
-### Auto-routing Mode (NEW!)
+### Auto-Routing Mode
 
 Useful when handling multiple projects simultaneously:
 
 ```bash
 # Receive messages for all devices and
-# automatically send to tmux sessions with matching names
-push-tmux daemon --auto-route
+# automatically send to matching tmux sessions
+push-tmux daemon
 
 # Prepare sessions
 tmux new -s project-a -d
 tmux new -s project-b -d
 tmux new -s project-c -d
 
-# Messages for each device will be automatically sent to corresponding sessions
+# Messages to each device are automatically sent to corresponding sessions
+```
+
+### Device Mapping Usage
+
+When you want to use different device names and tmux session names:
+
+```toml
+# config.toml
+[device_mapping]
+# Simple mapping (session only)
+"mobile-dev" = "frontend"      # mobile-dev device → frontend session
+
+# Detailed mapping (specify window and pane)
+[device_mapping."backend-api"]
+session = "backend"
+window = "1"        # Second window (index 1)
+pane = "2"         # Third pane (index 2)
+```
+
+```bash
+# Work in frontend session
+tmux new -s frontend
+cd ~/projects/mobile-app
+export DEVICE_NAME=mobile-dev
+push-tmux register
+push-tmux listen  # mobile-dev messages received in frontend session
 ```
 
 ### Scripting
@@ -275,49 +289,27 @@ tmux send-keys -t $PROJECT_NAME "push-tmux daemon" C-m
 tmux attach -t $PROJECT_NAME
 ```
 
-### Run as systemd Service
-
-Suitable for production deployment:
-
-```bash
-# /etc/systemd/system/push-tmux.service
-[Unit]
-Description=Push-tmux daemon
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/path/to/project
-Environment=PUSHBULLET_TOKEN=your-token
-ExecStart=/path/to/venv/bin/push-tmux daemon --auto-route
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
 ## Troubleshooting
 
 ### Messages Not Being Received
 
-1. Verify device is registered correctly
+1. Check if device is registered correctly
    ```bash
    push-tmux list-devices
    ```
 
-2. Confirm you're sending to the correct device
+2. Verify you're sending to the correct device
    - Broadcast messages are ignored
    - Select specific device when sending
 
-3. Check API key is configured correctly
+3. Check API key is set correctly
    ```bash
    cat .env | grep PUSHBULLET_TOKEN
    ```
 
 ### Messages Not Sent to tmux
 
-1. Verify you're running inside tmux
+1. Verify you're in a tmux session
    ```bash
    echo $TMUX  # Should have value if inside tmux
    ```
@@ -329,23 +321,13 @@ WantedBy=multi-user.target
    tmux list-panes
    ```
 
-### Daemon Restarting Frequently
+### Slow Applications (like Claude Code)
 
-1. Check logs
-   ```bash
-   # Run in debug mode
-   push-tmux daemon --debug
-   ```
-
-2. Adjust watch interval
-   ```bash
-   # Increase watch interval
-   push-tmux daemon --reload-interval 5.0
-   ```
-
-3. Check watched files
-   - Ensure frequently changing files (like logs) are not being watched
-   - Configure exclusions in `config.toml` with `ignore_patterns`
+Adjust the Enter key delay in config.toml:
+```toml
+[tmux]
+enter_delay = 1.0  # Increase delay for slow applications
+```
 
 ## Installation
 
@@ -354,34 +336,40 @@ WantedBy=multi-user.target
 git clone https://github.com/cuzic/push-tmux.git
 cd push-tmux
 
-# Install dependencies (uv recommended)
-uv pip install -e .
+# Set up mise environment (auto-installs Python 3.12 and dependencies)
+mise trust
+mise install
 
-# Or using pip
-pip install -e .
+# Install development dependencies
+uv pip install -e ".[test]"
+
+# Regular installation
+uv pip install -e .
 ```
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.12+ (via mise configuration)
 - tmux
 - Pushbullet account and API key
+- mise (Python environment management)
+- uv (fast package manager)
 
 ## Security
 
-- Add `.env` file to `.gitignore` to exclude from version control
-- Manage API keys via environment variables, never hardcode in source
-- Use hard-to-guess names like project names for device names
+- Add `.env` file to `.gitignore` to prevent version control
+- Manage API keys via environment variables, never hardcode in code
+- Use hard-to-guess device names like project names
 
 ## Documentation
 
 - [DAEMON.md](DAEMON.md) - Detailed daemon mode documentation
-- [config-example.toml](config-example.toml) - Sample configuration file
+- [config.toml.example](config.toml.example) - Sample configuration file
 - [CLAUDE.md](CLAUDE.md) - Developer guide
 
 ## Language
 
-- [日本語版 README](README.ja.md)
+- [日本語 README](README.ja.md)
 
 ## License
 
