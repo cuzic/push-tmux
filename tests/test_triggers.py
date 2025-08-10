@@ -200,17 +200,15 @@ class TestTriggerPattern:
             assert "matched: test something" in command
             assert "group: something" in command
     
-    def test_pushbullet_target_device(self):
-        """Test Pushbullet target device configuration"""
+    def test_target_device_expansion(self):
+        """Test target device name expansion for tmux session routing"""
         config = {
             "triggers": {
                 "notify_trigger": {
                     "match": {"pattern": "alert"},
                     "action": {
                         "template": "handle_alert.sh",
-                        "send_to_pushbullet": True,
-                        "target_device": "{source_device}_alerts",
-                        "pushbullet_title": "Alert from {source_device}"
+                        "target_device": "{source_device}_alerts"
                     }
                 }
             }
@@ -221,20 +219,17 @@ class TestTriggerPattern:
         
         assert len(actions) == 1
         action = actions[0][1]
-        assert action['send_to_pushbullet'] is True
         assert action['target_device'] == "monitor_alerts"
-        # pushbullet_title is not expanded in the action config, it remains as template
-        assert "source_device" in action['pushbullet_title'] or action['pushbullet_title'] == "Alert from monitor"
     
-    def test_target_session(self):
-        """Test tmux target session configuration"""
+    def test_target_device_with_capture_group(self):
+        """Test target device using capture groups"""
         config = {
             "triggers": {
                 "session_trigger": {
                     "match": {"pattern": "run in (.+)"},
                     "action": {
                         "template": "echo 'Running'",
-                        "target_session": "{group1}"
+                        "target_device": "{group1}"
                     }
                 }
             }
@@ -244,7 +239,7 @@ class TestTriggerPattern:
         actions = trigger.check_message("run in monitoring", "device1")
         
         assert len(actions) == 1
-        assert actions[0][1]['target_session'] == "monitoring"
+        assert actions[0][1]['target_device'] == "monitoring"
 
 
 class TestProcessTriggerActions:
@@ -260,22 +255,15 @@ class TestProcessTriggerActions:
         actions = [
             ("test_trigger", {
                 "command": "test_command.sh",
-                "target_session": "test_session"
+                "target_device": "test_device"
             })
         ]
         
         await process_trigger_actions(actions, {})
         
-        mock_send_to_tmux.assert_called_once_with({}, "test_command.sh", "test_session")
+        mock_send_to_tmux.assert_called_once_with({}, "test_command.sh", "test_device")
         mock_click.echo.assert_called()
     
-    @pytest.mark.asyncio 
-    @patch('push_tmux.tmux.send_to_tmux')
-    async def test_send_pushbullet_notification(self, mock_send_to_tmux):
-        """Test sending Pushbullet notification"""
-        # Skip this test as it requires complex async mock setup
-        # The functionality is tested through integration tests
-        pytest.skip("Complex async mock setup - tested through integration")
 
 
 class TestCheckTriggers:
@@ -292,7 +280,7 @@ class TestCheckTriggers:
                     },
                     "action": {
                         "template": "process {group1}",
-                        "target_session": "session_{group1}"
+                        "target_device": "device_{group1}"
                     },
                     "conditions": {
                         "cooldown": 0
@@ -306,7 +294,7 @@ class TestCheckTriggers:
         assert len(actions) == 1
         assert actions[0][0] == "test_trigger"
         assert actions[0][1]['command'] == "process test"
-        assert actions[0][1]['target_session'] == "session_test"
+        assert actions[0][1]['target_device'] == "device_test"
         
         # Wrong device
         actions = check_triggers("trigger test", "not_allowed", config)

@@ -154,7 +154,7 @@ class TriggerPattern:
             click.echo(f"Missing variable in template: {e}", err=True)
             return None
         
-        # Prepare Pushbullet target device
+        # Get target device for tmux session
         target_device = action_config.get('target_device')
         if target_device:
             # Expand variables in target device name
@@ -163,20 +163,9 @@ class TriggerPattern:
             except KeyError:
                 pass  # Keep original if expansion fails
         
-        # Prepare tmux target session
-        target_session = action_config.get('target_session')
-        if target_session:
-            try:
-                target_session = target_session.format(**variables)
-            except KeyError:
-                pass
-        
         return {
             'command': expanded_template,
-            'target_device': target_device,
-            'target_session': target_session,
-            'send_to_pushbullet': action_config.get('send_to_pushbullet', False),
-            'pushbullet_title': action_config.get('pushbullet_title', 'Trigger Alert'),
+            'target_device': target_device,  # This will be used as target session
             'variables': variables  # Include for debugging/logging
         }
     
@@ -211,60 +200,27 @@ class TriggerPattern:
             del self.execution_counts[key]
 
 
-async def process_trigger_actions(actions: List[Tuple[str, Dict[str, Any]]], config: Dict[str, Any], api_key: str = None):
+async def process_trigger_actions(actions: List[Tuple[str, Dict[str, Any]]], config: Dict[str, Any]):
     """
-    Process trigger actions (execute commands and send Pushbullet messages)
+    Process trigger actions (execute commands in tmux)
     
     Args:
         actions: List of (trigger_name, action_config) tuples
         config: Application configuration
-        api_key: Pushbullet API key (optional, for sending responses)
     """
     from .tmux import send_to_tmux
     
     for trigger_name, action in actions:
         command = action.get('command')
-        target_session = action.get('target_session')
+        # Use target_device as the target session (device name maps to tmux session)
+        target_session = action.get('target_device')
         
         # Execute command in tmux
         if command:
             click.echo(f"Trigger '{trigger_name}' fired: {command[:50]}...")
             await send_to_tmux(config, command, target_session)
-        
-        # Send Pushbullet notification if configured
-        if action.get('send_to_pushbullet') and api_key:
-            await _send_pushbullet_response(api_key, action)
 
 
-async def _send_pushbullet_response(api_key: str, action: Dict[str, Any]):
-    """Send a response via Pushbullet"""
-    from asyncpushbullet import AsyncPushbullet
-    
-    target_device = action.get('target_device')
-    title = action.get('pushbullet_title', 'Trigger Alert')
-    body = action.get('command', '')
-    
-    try:
-        async with AsyncPushbullet(api_key) as pb:
-            # Find target device if specified
-            target_iden = None
-            if target_device:
-                devices = pb.get_devices()
-                for device in devices:
-                    if device.nickname == target_device or device.iden == target_device:
-                        target_iden = device.iden
-                        break
-                
-                if not target_iden:
-                    click.echo(f"Target device '{target_device}' not found", err=True)
-                    return
-            
-            # Send the notification
-            await pb.async_push_note(title, body, device_iden=target_iden)
-            click.echo(f"Sent Pushbullet notification to {target_device or 'all devices'}")
-            
-    except Exception as e:
-        click.echo(f"Failed to send Pushbullet notification: {e}", err=True)
 
 
 def check_triggers(message: str, source_device: str, config: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:

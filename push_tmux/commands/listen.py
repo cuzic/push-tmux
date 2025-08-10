@@ -101,7 +101,7 @@ def _create_auto_route_handler(api_key, config):
                     # Check for triggers first
                     trigger_actions = check_triggers(message, source_device_name, config)
                     if trigger_actions:
-                        await process_trigger_actions(trigger_actions, config, api_key)
+                        await process_trigger_actions(trigger_actions, config)
                         return
                     
                     # Check if it's a slash command
@@ -155,7 +155,7 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
             # Check for triggers first
             trigger_actions = check_triggers(message, source_device_name, config)
             if trigger_actions:
-                await process_trigger_actions(trigger_actions, config, api_key)
+                await process_trigger_actions(trigger_actions, config)
                 return
             
             # Check if it's a slash command

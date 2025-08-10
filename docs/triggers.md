@@ -8,9 +8,9 @@ Triggers provide:
 - Pattern matching on incoming messages (regex or simple text)
 - Device-based filtering (only trigger from specific devices)
 - Command execution with variable substitution
-- Pushbullet notifications to any device
 - Rate limiting and cooldown periods
-- tmux session routing
+- Execute-once conditions for one-time triggers
+- Dynamic tmux session routing based on target device name
 
 ## Configuration
 
@@ -27,11 +27,7 @@ match = {
 # Action to execute
 action = {
     template = "notify-send 'Error from {source_device}: {match_text}'",
-    target_session = "alerts",
-    # Send notification back via Pushbullet
-    send_to_pushbullet = true,
-    target_device = "{source_device}",  # Dynamic device targeting
-    pushbullet_title = "Error Processed"
+    target_device = "alerts"  # Target device name (maps to tmux session)
 }
 # Execution conditions
 conditions = {
@@ -92,27 +88,23 @@ Available variables:
 - `{time}` - Current time (HH:MM:SS)
 - Named capture groups from regex
 
-### Pushbullet Notifications
+### Target Device (Session Routing)
 
-Send notifications to specific devices:
+Route commands to specific tmux sessions based on device name:
 
 ```toml
 action = {
     template = "handle_alert.sh",
-    send_to_pushbullet = true,
-    target_device = "admin-phone",  # Or use variables: "{source_device}_alerts"
-    pushbullet_title = "Alert: {match_text}"
+    target_device = "monitoring"  # Routes to 'monitoring' tmux session
 }
 ```
 
-### Target Session
-
-Route commands to specific tmux sessions:
+Dynamic routing using variables:
 
 ```toml
 action = {
-    template = "tail -f /var/log/{group1}.log",
-    target_session = "logs_{group1}"  # Dynamic session names
+    template = "process_log.sh",
+    target_device = "{source_device}_logs"  # e.g., "server_logs" session
 }
 ```
 
@@ -160,9 +152,7 @@ match = {
 }
 action = {
     template = "echo '[{timestamp}] {group1} from {source_device}: {group2}' >> /var/log/alerts.log",
-    send_to_pushbullet = true,
-    target_device = "ops-team",
-    pushbullet_title = "{group1} Alert"
+    target_device = "ops-monitoring"  # Routes to ops-monitoring tmux session
 }
 conditions = {
     cooldown = 60,
@@ -180,10 +170,7 @@ match = {
 }
 action = {
     template = "cd /app && git checkout {group1} && ./deploy.sh {group2}",
-    target_session = "deploy",
-    send_to_pushbullet = true,
-    target_device = "{source_device}",
-    pushbullet_title = "Deployment started: {group1} to {group2}"
+    target_device = "deploy"  # Routes to deploy tmux session
 }
 conditions = {
     execute_once = true  # Prevent accidental re-deployment
@@ -200,10 +187,7 @@ match = {
 }
 action = {
     template = "pg_dump {group1} > /backups/{group1}_{date}_{time}.sql && echo 'Backup completed'",
-    target_session = "maintenance",
-    send_to_pushbullet = true,
-    target_device = "{source_device}",
-    pushbullet_title = "Backup completed: {group1}"
+    target_device = "maintenance"  # Routes to maintenance tmux session
 }
 conditions = {
     cooldown = 3600  # One hour minimum between backups
@@ -220,10 +204,7 @@ match = {
 }
 action = {
     template = "grep -i '{group1}' /var/log/*.log | tail -20",
-    target_session = "search",
-    send_to_pushbullet = true,
-    target_device = "{source_device}",
-    pushbullet_title = "Log search results for: {group1}"
+    target_device = "search"  # Routes to search tmux session
 }
 ```
 
@@ -237,10 +218,7 @@ match = {
 }
 action = {
     template = "if [ {group1} -gt 80 ]; then systemctl restart app-service; echo 'Service restarted due to high CPU'; fi",
-    target_session = "system",
-    send_to_pushbullet = true,
-    target_device = "admin",
-    pushbullet_title = "High CPU Alert: {group1}%"
+    target_device = "system"  # Routes to system tmux session
 }
 conditions = {
     cooldown = 300  # Don't restart more than once per 5 minutes
@@ -257,10 +235,7 @@ match = {
 }
 action = {
     template = "{group2}",  # Execute the command as-is
-    target_session = "{group1}",  # Route to specified session
-    send_to_pushbullet = true,
-    target_device = "{group1}",  # Also notify the target device
-    pushbullet_title = "Command from {source_device}"
+    target_device = "{group1}"  # Route to specified device/session
 }
 ```
 
@@ -278,9 +253,7 @@ match = {
 }
 action = {
     template = "echo 'Blocked suspicious command from {source_device}' >> /var/log/security.log",
-    send_to_pushbullet = true,
-    target_device = "security-admin",
-    pushbullet_title = "Security Alert"
+    target_device = "security"  # Routes to security tmux session
 }
 conditions = {
     max_per_hour = 100
@@ -318,7 +291,6 @@ Test your triggers by sending messages to your device:
 
 3. Check execution:
    - View tmux session for command output
-   - Check Pushbullet for notifications
    - Review logs for trigger activity
 
 ## Troubleshooting
@@ -342,3 +314,19 @@ Test your triggers by sending messages to your device:
 - Complex regex patterns may slow down message processing
 - Use specific `from_devices` filters to reduce processing
 - Set appropriate rate limits to prevent resource exhaustion
+
+## How It Works
+
+1. **Message Reception**: When a message arrives from a Pushbullet device
+2. **Pattern Matching**: The message is checked against all trigger patterns
+3. **Device Filtering**: Only triggers with matching `from_devices` (if specified) proceed
+4. **Condition Checking**: Cooldown, rate limiting, and execute-once conditions are verified
+5. **Variable Expansion**: Template variables are replaced with actual values
+6. **Session Routing**: Command is sent to the tmux session named by `target_device`
+7. **Execution**: The expanded command is executed in the target tmux session
+
+The `target_device` field serves as both:
+- A way to specify which tmux session should receive the command
+- A dynamic routing mechanism when using variables like `{source_device}` or `{group1}`
+
+This design follows the push-tmux philosophy where device names map directly to tmux session names, enabling seamless message routing.
