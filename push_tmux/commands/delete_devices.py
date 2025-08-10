@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from asyncpushbullet import AsyncPushbullet
 import questionary
-from ..device import _find_target_device
+from ..device import _find_target_device, _get_device_attr
 
 
 def _format_created_time(created):
@@ -21,17 +21,18 @@ def _format_created_time(created):
 
 def _create_device_choice(device):
     """デバイス選択肢を作成"""
-    name = device.get('nickname', 'N/A')
-    status = '✓' if device.get('active', True) else '✗'
-    created = _format_created_time(device.get('created', 0))
-    return f"{status} {name} (ID: {device['iden'][:8]}...) - {created}"
+    name = _get_device_attr(device, 'nickname') or 'N/A'
+    status = '✓' if (_get_device_attr(device, 'active') is not False) else '✗'
+    created = _format_created_time(_get_device_attr(device, 'created') or 0)
+    device_iden = _get_device_attr(device, 'iden')
+    return f"{status} {name} (ID: {device_iden[:8] if device_iden else 'N/A'}...) - {created}"
 
 
 async def _delete_single_device(api_key, name, device_id, yes):
     """単一デバイスの削除"""
     async with AsyncPushbullet(api_key) as pb:
         try:
-            devices = await pb.get_devices()
+            devices = pb.get_devices()  # get_devicesは同期メソッド
             target_device = _find_target_device(devices, name, device_id)
             
             if not target_device:
@@ -44,17 +45,18 @@ async def _delete_single_device(api_key, name, device_id, yes):
             # 削除確認
             if not yes:
                 click.echo(f"\nデバイス情報:")
-                click.echo(f"  名前: {target_device.get('nickname', 'N/A')}")
-                click.echo(f"  ID: {target_device['iden']}")
-                click.echo(f"  作成日時: {target_device.get('created', 'N/A')}")
+                click.echo(f"  名前: {_get_device_attr(target_device, 'nickname') or 'N/A'}")
+                click.echo(f"  ID: {_get_device_attr(target_device, 'iden')}")
+                click.echo(f"  作成日時: {_get_device_attr(target_device, 'created') or 'N/A'}")
                 
                 if not click.confirm("\nこのデバイスを削除しますか？"):
                     click.echo("削除をキャンセルしました。")
                     return
             
             # デバイス削除実行
-            await pb.delete_device(target_device['iden'])
-            click.echo(f"デバイス '{target_device.get('nickname', 'N/A')}' (ID: {target_device['iden']}) を削除しました。")
+            device_iden = _get_device_attr(target_device, 'iden')
+            await pb.delete_device(device_iden)
+            click.echo(f"デバイス '{_get_device_attr(target_device, 'nickname') or 'N/A'}' (ID: {device_iden}) を削除しました。")
             
         except Exception as e:
             click.echo(f"デバイス削除中にエラーが発生しました: {e}", err=True)
@@ -79,7 +81,8 @@ async def _confirm_deletion(selected_devices):
     """削除の最終確認"""
     click.echo(f"\n{len(selected_devices)}個のデバイスを削除します:")
     for device in selected_devices:
-        click.echo(f"  - {device.get('nickname', 'N/A')} (ID: {device['iden'][:8]}...)")
+        device_iden = _get_device_attr(device, 'iden')
+        click.echo(f"  - {_get_device_attr(device, 'nickname') or 'N/A'} (ID: {device_iden[:8] if device_iden else 'N/A'}...)")
     
     return click.confirm(f"\n本当に{len(selected_devices)}個のデバイスを削除しますか？")
 
@@ -89,11 +92,12 @@ async def _delete_multiple_devices(pb, selected_devices):
     success_count = 0
     for device in selected_devices:
         try:
-            await pb.delete_device(device['iden'])
-            click.echo(f"✓ {device.get('nickname', 'N/A')} を削除しました")
+            device_iden = _get_device_attr(device, 'iden')
+            await pb.delete_device(device_iden)
+            click.echo(f"✓ {_get_device_attr(device, 'nickname') or 'N/A'} を削除しました")
             success_count += 1
         except Exception as e:
-            click.echo(f"✗ {device.get('nickname', 'N/A')} の削除に失敗: {e}")
+            click.echo(f"✗ {_get_device_attr(device, 'nickname') or 'N/A'} の削除に失敗: {e}")
     
     click.echo(f"\n{success_count}/{len(selected_devices)} 個のデバイスを削除しました。")
 
@@ -102,12 +106,12 @@ async def _delete_devices_interactive(api_key, include_inactive):
     """インタラクティブなデバイス削除"""
     async with AsyncPushbullet(api_key) as pb:
         try:
-            all_devices = await pb.get_devices()
+            all_devices = pb.get_devices()  # get_devicesは同期メソッド
             
             if include_inactive:
                 devices = all_devices
             else:
-                devices = [d for d in all_devices if d.get('active', True)]
+                devices = [d for d in all_devices if _get_device_attr(d, 'active') is not False]
             
             if not devices:
                 if include_inactive:

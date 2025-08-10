@@ -7,6 +7,7 @@ import click
 import os
 from asyncpushbullet import AsyncPushbullet
 from ..config import get_device_name
+from ..device import _get_device_attr
 
 
 @click.command()
@@ -25,17 +26,17 @@ def register(name):
         
         async with AsyncPushbullet(api_key) as pb:
             try:
-                devices = await pb.get_devices()
-                existing_device = next((d for d in devices if d.get('nickname') == device_name), None)
+                devices = pb.get_devices()  # get_devicesは同期メソッド
+                existing_device = next((d for d in devices if _get_device_attr(d, 'nickname') == device_name), None)
                 
                 if existing_device:
                     click.echo(f"デバイス '{device_name}' は既に登録されています。")
-                    click.echo(f"デバイスID: {existing_device['iden']}")
+                    click.echo(f"デバイスID: {_get_device_attr(existing_device, 'iden')}")
                     return
                 
                 device = await pb.create_device(device_name)
                 click.echo(f"デバイス '{device_name}' を登録しました。")
-                click.echo(f"デバイスID: {device['iden']}")
+                click.echo(f"デバイスID: {_get_device_attr(device, 'iden')}")
                 
             except Exception as e:
                 click.echo(f"デバイス登録中にエラーが発生しました: {e}", err=True)

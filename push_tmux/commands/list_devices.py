@@ -6,6 +6,7 @@ import asyncio
 import click
 import os
 from asyncpushbullet import AsyncPushbullet
+from ..device import _get_device_attr
 
 
 @click.command('list-devices')
@@ -21,7 +22,7 @@ def list_devices():
         
         async with AsyncPushbullet(api_key) as pb:
             try:
-                devices = await pb.get_devices()
+                devices = pb.get_devices()  # get_devicesは同期メソッド
                 
                 if not devices:
                     click.echo("登録されているデバイスがありません。")
@@ -31,11 +32,11 @@ def list_devices():
                 click.echo("-" * 50)
                 
                 for device in devices:
-                    status = "アクティブ" if device.get('active', True) else "非アクティブ"
-                    click.echo(f"名前: {device.get('nickname', 'N/A')}")
-                    click.echo(f"ID: {device['iden']}")
+                    status = "アクティブ" if _get_device_attr(device, 'active') is not False else "非アクティブ"
+                    click.echo(f"名前: {_get_device_attr(device, 'nickname') or 'N/A'}")
+                    click.echo(f"ID: {_get_device_attr(device, 'iden')}")
                     click.echo(f"ステータス: {status}")
-                    click.echo(f"作成日時: {device.get('created', 'N/A')}")
+                    click.echo(f"作成日時: {_get_device_attr(device, 'created') or 'N/A'}")
                     click.echo("-" * 30)
                     
             except Exception as e:
