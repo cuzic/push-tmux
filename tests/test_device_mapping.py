@@ -3,12 +3,10 @@
 デバイスマッピング機能のテスト
 """
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch, call
+from unittest.mock import MagicMock, AsyncMock, patch
 import os
 
 # パスはconftest.pyで設定済み
-import sys
 
 from push_tmux.tmux import send_to_tmux
 from test_helpers import create_tmux_mock, assert_send_keys_called
@@ -30,7 +28,7 @@ class TestDeviceMapping:
         mock_subprocess.side_effect = create_tmux_mock(existing_sessions=['frontend'])
         
         # click.echoをモック
-        with patch('push_tmux.tmux.click.echo') as mock_echo:
+        with patch('push_tmux.tmux.click.echo'):
             await send_to_tmux(config, "test message", device_name="mobile-dev")
             
         

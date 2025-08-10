@@ -5,8 +5,7 @@
 import pytest
 import asyncio
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
-from dotenv import load_dotenv
+from unittest.mock import AsyncMock, patch
 
 # パスを追加
 import sys
@@ -14,9 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 try:
     from asyncpushbullet import AsyncPushbullet, LiveStreamListener
+    AsyncPushbulletListener = LiveStreamListener  # Alias for compatibility
 except ImportError:
     AsyncPushbullet = None
     LiveStreamListener = None
+    AsyncPushbulletListener = None
 
 
 @pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため統合テストを無効化")
