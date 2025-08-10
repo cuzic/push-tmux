@@ -86,39 +86,92 @@ async def _resolve_target_session(config, device_name):
     3. default_target_session の設定
     4. 現在のtmuxセッション
     """
+    session_config = _extract_session_config(config)
+    
+    # 優先順位に従って解決を試行
+    result = await _try_priority_resolution(device_name, session_config)
+    if result[0]:
+        return result
+    
+    # フォールバック処理
+    return await _handle_session_fallback(device_name, session_config)
+
+
+def _extract_session_config(config):
+    """セッション解決に必要な設定を抽出"""
     tmux_config = config.get('tmux', {})
-    default_session = tmux_config.get('default_target_session')
-    use_device_name = tmux_config.get('use_device_name_as_session', True)  # デフォルトはTrue
-    device_mapping = config.get('device_mapping', {})
+    return {
+        'default_session': tmux_config.get('default_target_session'),
+        'use_device_name': tmux_config.get('use_device_name_as_session', True),
+        'device_mapping': config.get('device_mapping', {})
+    }
+
+
+async def _try_priority_resolution(device_name, session_config):
+    """優先順位に従ってセッション解決を試行"""
+    device_mapping = session_config['device_mapping']
     
     # 1. device_mappingでの明示的なマッピングを最優先
+    result = await _try_mapped_resolution(device_name, device_mapping)
+    if result[0]:
+        return result
+    
+    # 2. デバイス名と同じセッション
+    return await _try_device_name_resolution(device_name, session_config)
+
+
+async def _try_mapped_resolution(device_name, device_mapping):
+    """マッピングによる解決を試行"""
     if device_name and device_name in device_mapping:
         result = await _try_mapped_session(device_name, device_mapping)
         if result[0]:
             return result
-    
-    # 2. use_device_name_as_session が true で、デバイス名と同じセッションが存在する場合
-    if device_name and use_device_name:
-        result = await _try_device_name_session(device_name, device_mapping)
+    return None, None, None
+
+
+async def _try_device_name_resolution(device_name, session_config):
+    """デバイス名による解決を試行"""
+    if device_name and session_config['use_device_name']:
+        result = await _try_device_name_session(device_name, session_config['device_mapping'])
         if result[0]:
             return result
+    return None, None, None
+
+
+async def _handle_session_fallback(device_name, session_config):
+    """フォールバック処理 - デフォルトセッション・現在セッション"""
+    # デフォルトセッションを試行
+    result = await _try_default_session(session_config['default_session'])
+    if result[0]:
+        return result
     
-    # 3. default_target_session が設定されている場合
+    # 現在のセッションを試行
+    result = await _try_current_session()
+    if result[0]:
+        return result
+    
+    # エラー処理
+    await _show_session_not_found_error(device_name)
+    return None, None, None
+
+
+async def _try_default_session(default_session):
+    """デフォルトセッションの解決を試行"""
     if default_session and default_session != 'current':
         if await _check_session_exists(default_session):
             click.echo(f"デフォルトのtmuxセッション '{default_session}' を使用します。")
             return default_session, None, None
         else:
             click.echo(f"警告: デフォルトセッション '{default_session}' が存在しません。")
-    
-    # 4. 現在のセッションを使用
+    return None, None, None
+
+
+async def _try_current_session():
+    """現在のセッションの解決を試行"""
     current_session = await _get_current_session()
     if current_session:
         click.echo(f"現在のtmuxセッション '{current_session}' を使用します。")
         return current_session, None, None
-    
-    # 5. エラー処理
-    await _show_session_not_found_error(device_name)
     return None, None, None
 
 
