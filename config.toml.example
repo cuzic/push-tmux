@@ -5,6 +5,7 @@
 # target_session = "main"   # 明示的にセッション名を指定（省略時はデバイス名と同じセッション）
 # target_window = "1"       # ウィンドウインデックス（省略時は最初のウィンドウ）
 # target_pane = "0"         # ペインインデックス（省略時は最初のペイン）
+enter_delay = 0.5          # メッセージ送信後、Enterキーを押すまでの遅延（秒）
 
 [device_mapping]
 # デバイス名とtmuxセッションのマッピング

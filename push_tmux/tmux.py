@@ -175,15 +175,25 @@ async def _resolve_window_pane(target_session, window_setting, pane_setting, map
     return target_window, target_pane
 
 
-async def _send_tmux_commands(target, message):
+async def _send_tmux_commands(target, message, enter_delay=0.5):
     """tmuxにメッセージとEnterキーを送信"""
     try:
         # メッセージを送信
         click.echo(f"tmuxセッション '{target}' にメッセージを送信します...")
         
+        # まずメッセージを送信（Enterなし）
         await asyncio.create_subprocess_exec(
-            'tmux', 'send-keys', '-t', target, message, 'Enter'
+            'tmux', 'send-keys', '-t', target, message
         )
+        
+        # 少し待機（アプリケーションがテキストを処理する時間を確保）
+        await asyncio.sleep(enter_delay)
+        
+        # Enterキーを送信
+        await asyncio.create_subprocess_exec(
+            'tmux', 'send-keys', '-t', target, 'Enter'
+        )
+        
         click.echo(f"メッセージ '{message}' を送信しました。")
     except Exception as e:
         click.echo(f"tmuxへの送信でエラーが発生しました: {e}", err=True)
@@ -208,5 +218,8 @@ async def send_to_tmux(config, message, device_name=None):
     # tmux送信先を構築
     target = f"{target_session}:{target_window}.{target_pane}"
     
+    # Enter送信前の遅延時間を設定から取得（デフォルト0.5秒）
+    enter_delay = tmux_config.get('enter_delay', 0.5)
+    
     # tmuxにコマンド送信
-    await _send_tmux_commands(target, message)
+    await _send_tmux_commands(target, message, enter_delay)
