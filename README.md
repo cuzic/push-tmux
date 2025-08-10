@@ -110,6 +110,44 @@ push-tmux --help
 
 **Note:** The wrapper scripts automatically handle project path resolution and dependency management using `uv`.
 
+## Development Environment
+
+### Using DevContainer (Recommended)
+
+This project includes a complete DevContainer configuration for instant development setup:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd push-tmux
+
+# Open in VS Code and use "Reopen in Container"
+# Or use GitHub Codespaces
+```
+
+The DevContainer includes:
+- **Python 3.12** with mise and uv pre-configured
+- **All development tools**: ruff, mypy, pytest, tmux
+- **VS Code extensions** for Python development
+- **Automatic setup** of dependencies and test environment
+
+### Manual Setup
+
+If you prefer manual setup:
+
+```bash
+# Install mise and uv
+curl https://mise.run | sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Setup environment
+mise trust && mise install
+uv sync --extra test
+
+# Run tests
+uv run pytest
+```
+
 ## How It Works
 
 1. **Device Identification**: Different device names for each directory enable per-project message routing

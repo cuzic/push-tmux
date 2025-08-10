@@ -1,15 +1,10 @@
 {
-  "name": "Push-tmux Development",
+  "name": "push-tmux Development",
   "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
   
   // Features to add to the dev container
   "features": {
-    // Git and GitHub CLI for version control
-    "ghcr.io/devcontainers/features/github-cli:1": {
-      "version": "latest"
-    },
-    
-    // Common utilities
+    // Common utilities with zsh
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
       "configureZshAsDefaultShell": true,
@@ -20,20 +15,18 @@
       "userGid": "automatic"
     },
     
-    // Python development tools
-    "ghcr.io/devcontainers-contrib/features/ruff:1": {},
-    "ghcr.io/devcontainers-contrib/features/mypy:2": {},
-    "ghcr.io/devcontainers-contrib/features/poetry:2": {},
-    "ghcr.io/devcontainers-contrib/features/black:2": {},
-    "ghcr.io/devcontainers-contrib/features/pytest:2": {},
-    
-    // mise for version management (as mentioned in CLAUDE.md)
-    "ghcr.io/devcontainers-contrib/features/mise:1": {
+    // Git for version control
+    "ghcr.io/devcontainers/features/git:1": {
       "version": "latest"
     },
     
-    // uv for fast package management (as mentioned in CLAUDE.md)
-    "ghcr.io/devcontainers-contrib/features/uv:1": {
+    // GitHub CLI
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    
+    // mise for Python version management (as specified in CLAUDE.md)
+    "ghcr.io/devcontainers-contrib/features/mise:1": {
       "version": "latest"
     },
     
@@ -42,31 +35,17 @@
       "version": "latest"
     },
     
-    // Starship prompt for better terminal experience
-    "ghcr.io/devcontainers-contrib/features/starship:1": {},
-    
-    // Pre-commit hooks
-    "ghcr.io/devcontainers-contrib/features/pre-commit:2": {},
-    
-    // ripgrep for fast searching
+    // ripgrep for fast searching (used by Claude Code)
     "ghcr.io/devcontainers-contrib/features/ripgrep:1": {},
     
-    // fzf for fuzzy finding
-    "ghcr.io/devcontainers-contrib/features/fzf:1": {},
-    
-    // bat for better file viewing
-    "ghcr.io/devcontainers-contrib/features/bat:1": {},
-    
-    // jq for JSON processing (useful for API responses)
+    // jq for JSON processing (useful for API testing)
     "ghcr.io/devcontainers-contrib/features/jq:1": {},
     
-    // Node.js (for any JavaScript tooling)
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "lts"
-    }
+    // fzf for fuzzy finding
+    "ghcr.io/devcontainers-contrib/features/fzf:1": {}
   },
   
-  // VS Code extensions
+  // VS Code extensions optimized for this project
   "customizations": {
     "vscode": {
       "extensions": [
@@ -75,32 +54,17 @@
         "ms-python.debugpy",
         "charliermarsh.ruff",
         "ms-python.mypy-type-checker",
-        "ms-vscode.test-adapter-converter",
         "littlefoxteam.vscode-python-test-adapter",
         "tamasfe.even-better-toml",
         "redhat.vscode-yaml",
         "eamodio.gitlens",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
         "usernamehw.errorlens",
-        "streetsidesoftware.code-spell-checker",
-        "wayou.vscode-todo-highlight",
-        "gruntfuggly.todo-tree",
-        "yzhang.markdown-all-in-one",
-        "bierner.markdown-mermaid",
-        "DavidAnson.vscode-markdownlint",
-        "christian-kohler.path-intellisense",
-        "ms-azuretools.vscode-docker",
-        "EditorConfig.EditorConfig",
         "mikestead.dotenv",
-        "oderwat.indent-rainbow",
-        "mechatroner.rainbow-csv"
+        "yzhang.markdown-all-in-one"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.terminal.activateEnvironment": true,
-        "python.linting.enabled": false,
-        "python.formatting.provider": "none",
+        "python.defaultInterpreterPath": "/workspaces/push-tmux/.venv/bin/python",
+        "python.terminal.activateEnvironment": false,
         "[python]": {
           "editor.defaultFormatter": "charliermarsh.ruff",
           "editor.formatOnSave": true,
@@ -113,11 +77,6 @@
         "ruff.format.enable": true,
         "mypy-type-checker.importStrategy": "fromEnvironment",
         "terminal.integrated.defaultProfile.linux": "zsh",
-        "terminal.integrated.profiles.linux": {
-          "zsh": {
-            "path": "/bin/zsh"
-          }
-        },
         "files.exclude": {
           "**/__pycache__": true,
           "**/*.pyc": true,
@@ -126,38 +85,24 @@
           "**/.ruff_cache": true,
           "**/htmlcov": true,
           "**/.coverage": true
+        },
+        "files.watcherExclude": {
+          "**/.venv/**": true,
+          "**/__pycache__/**": true
         }
       }
     }
   },
   
-  // Forward ports for any web services
-  "forwardPorts": [],
-  
-  // Environment variables
-  "remoteEnv": {
-    "PYTHONPATH": "${containerWorkspaceFolder}"
-  },
-  
-  // Post-create commands
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  
-  // Post-start commands
-  "postStartCommand": "mise trust && mise install",
-  
-  // Post-attach commands  
-  "postAttachCommand": "echo '🚀 DevContainer ready! Run \"mise trust && mise install\" to set up the environment.'",
+  // Post-create commands to set up the environment
+  "postCreateCommand": ".devcontainer/setup.sh",
   
   // Run as non-root user
   "remoteUser": "vscode",
   
-  // Mount points
-  "mounts": [
-    "source=${localWorkspaceFolder}/.env,target=/workspaceFolder/.env,type=bind,consistency=cached"
-  ],
-  
-  // Container environment variables
-  "containerEnv": {
+  // Environment variables
+  "remoteEnv": {
+    "PYTHONPATH": "${containerWorkspaceFolder}",
     "SHELL": "/bin/zsh"
   }
 }
