@@ -35,11 +35,25 @@ def start(device, all_devices, auto_route, no_auto_route, daemon, once, debug, r
     --onceオプションで一回限りの実行、--daemonオプションでファイル監視付きの
     デーモンモードを選択できます。
     """
-    # 引数の検証
-    if daemon and once:
-        click.echo("エラー: --daemon と --once は同時に指定できません。", err=True)
+    if not _validate_start_options(daemon, once):
         return
     
+    processed_args = _process_start_arguments(device, all_devices, auto_route, no_auto_route)
+    config = load_config()
+    
+    _execute_start_mode(config, processed_args, daemon, once, debug, reload_interval, watch_files)
+
+
+def _validate_start_options(daemon, once):
+    """引数の検証"""
+    if daemon and once:
+        click.echo("エラー: --daemon と --once は同時に指定できません。", err=True)
+        return False
+    return True
+
+
+def _process_start_arguments(device, all_devices, auto_route, no_auto_route):
+    """引数を処理して正規化する"""
     # 引数がない場合は自動ルーティングをデフォルトに
     if not device and not all_devices and not auto_route and not no_auto_route:
         auto_route = True
@@ -48,46 +62,80 @@ def start(device, all_devices, auto_route, no_auto_route, daemon, once, debug, r
     if no_auto_route:
         auto_route = False
     
-    config = load_config()
-    
+    return {
+        'device': device,
+        'all_devices': all_devices,
+        'auto_route': auto_route
+    }
+
+
+def _execute_start_mode(config, processed_args, daemon, once, debug, reload_interval, watch_files):
+    """適切なモードでstart処理を実行"""
     if daemon:
         # デーモンモード - ファイル監視とホットリロード機能
-        _run_daemon_mode(config, device, all_devices, auto_route, debug, reload_interval, watch_files)
+        _run_daemon_mode(config, processed_args['device'], processed_args['all_devices'], 
+                        processed_args['auto_route'], debug, reload_interval, watch_files)
     elif once:
         # 一回限りモード - 単発のメッセージ待機
-        _run_once_mode(config, device, all_devices, auto_route, debug)
+        _run_once_mode(config, processed_args['device'], processed_args['all_devices'], 
+                      processed_args['auto_route'], debug)
     else:
         # デフォルト - 継続的なメッセージ待機（シンプル）
-        _run_continuous_mode(config, device, all_devices, auto_route, debug)
+        _run_continuous_mode(config, processed_args['device'], processed_args['all_devices'], 
+                           processed_args['auto_route'], debug)
 
 
 def _run_daemon_mode(config, device, all_devices, auto_route, debug, reload_interval, watch_files):
     """デーモンモード - ファイル変更監視付き"""
     setup_logging(config, is_daemon=True)
     
-    # デフォルトの監視ファイル設定
+    daemon_settings = _prepare_daemon_settings(config, reload_interval, watch_files)
+    mode_desc = "自動ルーティング" if auto_route else (device or 'default')
+    
+    _log_daemon_start(mode_desc, daemon_settings)
+    file_timestamps = _initialize_file_timestamps(daemon_settings['watch_files'])
+    _setup_daemon_signal_handlers()
+    
+    _run_daemon_main_loop(file_timestamps, daemon_settings, device, all_devices, auto_route, debug)
+
+
+def _prepare_daemon_settings(config, reload_interval, watch_files):
+    """デーモンの設定を準備する"""
     daemon_config = config.get('daemon', {})
     default_watch_files = daemon_config.get('watch_files', ['config.toml', '.env'])
     actual_watch_files = list(watch_files) if watch_files else default_watch_files
     actual_reload_interval = reload_interval if reload_interval != 1.0 else daemon_config.get('reload_interval', 1.0)
     
-    mode_desc = "自動ルーティング" if auto_route else (device or 'default')
+    return {
+        'watch_files': actual_watch_files,
+        'reload_interval': actual_reload_interval
+    }
+
+
+def _log_daemon_start(mode_desc, daemon_settings):
+    """デーモン開始のログを出力"""
     click.echo(f"デーモンモード開始 - モード: {mode_desc}")
-    click.echo(f"監視ファイル: {actual_watch_files}")
-    click.echo(f"監視間隔: {actual_reload_interval}秒")
+    click.echo(f"監視ファイル: {daemon_settings['watch_files']}")
+    click.echo(f"監視間隔: {daemon_settings['reload_interval']}秒")
     
     log_daemon_event("DAEMON_START", {
         "mode": mode_desc,
-        "watch_files": actual_watch_files,
-        "reload_interval": actual_reload_interval
+        "watch_files": daemon_settings['watch_files'],
+        "reload_interval": daemon_settings['reload_interval']
     })
-    
-    # ファイルのタイムスタンプを記録
+
+
+def _initialize_file_timestamps(watch_files):
+    """ファイルのタイムスタンプを初期化"""
     file_timestamps = {}
-    for filepath in actual_watch_files:
+    for filepath in watch_files:
         if Path(filepath).exists():
             file_timestamps[filepath] = Path(filepath).stat().st_mtime
-    
+    return file_timestamps
+
+
+def _setup_daemon_signal_handlers():
+    """デーモン用のシグナルハンドラーを設定"""
     def signal_handler(signum, frame):
         click.echo("\nデーモンを停止しています...")
         log_daemon_event("DAEMON_STOP", {"signal": signum})
@@ -95,44 +143,60 @@ def _run_daemon_mode(config, device, all_devices, auto_route, debug, reload_inte
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
-    # メインループ
+
+
+def _run_daemon_main_loop(file_timestamps, daemon_settings, device, all_devices, auto_route, debug):
+    """デーモンのメインループを実行"""
     try:
         while True:
-            # ファイルの変更をチェック
-            reload_needed = False
-            for filepath in actual_watch_files:
-                if Path(filepath).exists():
-                    current_mtime = Path(filepath).stat().st_mtime
-                    if filepath not in file_timestamps or current_mtime > file_timestamps[filepath]:
-                        file_timestamps[filepath] = current_mtime
-                        reload_needed = True
-                        click.echo(f"ファイル変更を検出: {filepath}")
-                        log_daemon_event("FILE_CHANGED", {"file": filepath})
+            reload_needed = _check_file_changes(file_timestamps, daemon_settings['watch_files'])
             
             if reload_needed:
-                click.echo("設定をリロードしています...")
-                config = load_config()
-                log_daemon_event("CONFIG_RELOAD", {})
+                _handle_config_reload()
             
-            # リスナーを起動（バックグラウンド実行）
-            try:
-                asyncio.run(listen_main(
-                    device=device,
-                    all_devices=all_devices,
-                    auto_route=auto_route,
-                    debug=debug
-                ))
-            except Exception as e:
-                click.echo(f"リスナーエラー: {e}", err=True)
-                log_daemon_event("LISTENER_ERROR", {"error": str(e)})
-                time.sleep(1)  # エラー時は少し待つ
-            
-            time.sleep(actual_reload_interval)
+            _run_listener_iteration(device, all_devices, auto_route, debug)
+            time.sleep(daemon_settings['reload_interval'])
             
     except KeyboardInterrupt:
         click.echo("\nデーモンを停止しました。")
         log_daemon_event("DAEMON_STOP", {"reason": "keyboard_interrupt"})
+
+
+def _check_file_changes(file_timestamps, watch_files):
+    """ファイルの変更をチェック"""
+    reload_needed = False
+    for filepath in watch_files:
+        if Path(filepath).exists():
+            current_mtime = Path(filepath).stat().st_mtime
+            if filepath not in file_timestamps or current_mtime > file_timestamps[filepath]:
+                file_timestamps[filepath] = current_mtime
+                reload_needed = True
+                click.echo(f"ファイル変更を検出: {filepath}")
+                log_daemon_event("FILE_CHANGED", {"file": filepath})
+    return reload_needed
+
+
+def _handle_config_reload():
+    """設定のリロードを処理"""
+    click.echo("設定をリロードしています...")
+    config = load_config()
+    log_daemon_event("CONFIG_RELOAD", {})
+    return config
+
+
+def _run_listener_iteration(device, all_devices, auto_route, debug):
+    """リスナーの1回の実行を処理"""
+    try:
+        asyncio.run(listen_main(
+            device=device,
+            all_devices=all_devices,
+            auto_route=auto_route,
+            debug=debug
+        ))
+    except Exception as e:
+        click.echo(f"リスナーエラー: {e}", err=True)
+        log_daemon_event("LISTENER_ERROR", {"error": str(e)})
+        time.sleep(1)  # エラー時は少し待つ
 
 
 def _run_once_mode(config, device, all_devices, auto_route, debug):
