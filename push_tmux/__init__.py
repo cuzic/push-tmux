@@ -9,6 +9,11 @@ import click
 def cli():
     """
     Pushbulletのメッセージをtmuxに送信するCLIツール。
+    
+    主要コマンド:
+      device    Pushbulletデバイスの管理 (register/list/delete)
+      start     メッセージ待機の開始 (--daemon でデーモンモード)
+      send      テスト用のメッセージ送信
     """
     pass
 
@@ -16,20 +21,15 @@ def cli():
 # 各コマンドを動的にインポートして登録
 def _register_commands():
     """全てのサブコマンドを登録"""
-    from .commands.register import register
-    from .commands.list_devices import list_devices  
-    from .commands.delete_devices import delete_devices
-    from .commands.send_key import send_key
-    from .commands.listen import listen
-    from .commands.daemon import daemon
+    # 新しい階層構造のコマンド
+    from .commands.device_group import device
+    from .commands.start import start
+    from .commands.send import send
     
     # サブコマンドを登録
-    cli.add_command(register)
-    cli.add_command(list_devices)
-    cli.add_command(delete_devices)
-    cli.add_command(send_key)
-    cli.add_command(listen)
-    cli.add_command(daemon)
+    cli.add_command(device)
+    cli.add_command(start) 
+    cli.add_command(send)
 
 
 # コマンドを登録
