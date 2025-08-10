@@ -36,7 +36,7 @@ def runner():
 @pytest.fixture
 def mock_subprocess():
     """asyncio.create_subprocess_execのモック"""
-    with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock:
+    with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock:
         yield mock
 
 # 環境変数モック用フィクスチャ

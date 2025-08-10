@@ -62,20 +62,39 @@ def setup_logging(config, is_daemon=False):
     }
     
     logging.config.dictConfig(logging_dict)
+    return logging.getLogger('push_tmux')
 
 
 def log_daemon_event(event_type, message, **kwargs):
     """デーモンイベントをログ出力"""
+    import click
     logger = logging.getLogger('push_tmux.daemon')
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # 追加情報があれば含める
     extra_info = ' '.join([f'{k}={v}' for k, v in kwargs.items()]) if kwargs else ''
-    full_message = f'[{timestamp}] {message}' + (f' ({extra_info})' if extra_info else '')
     
-    if event_type.lower() == 'error':
-        logger.error(full_message)
-    elif event_type.lower() == 'warning':
-        logger.warning(full_message)
-    else:
+    # イベントタイプに基づいたメッセージの作成
+    if event_type.lower() == 'start':
+        full_message = f'プロセス開始: {message}'
         logger.info(full_message)
+        click.echo(full_message)
+    elif event_type.lower() == 'error':
+        full_message = f'エラー: {message}'
+        logger.error(full_message)
+        click.echo(full_message, err=True)
+    elif event_type.lower() == 'warning':
+        full_message = f'警告: {message}'
+        logger.warning(full_message)
+        click.echo(full_message)
+    elif event_type.lower() == 'info':
+        full_message = f'{message}' + (f' ({extra_info})' if extra_info else '')
+        logger.info(full_message)
+        click.echo(full_message)
+    elif event_type.lower() == 'file_change':
+        full_message = f'ファイル変更検知: {message}'
+        logger.info(full_message)
+        click.echo(full_message)
+    else:
+        full_message = f'{message}' + (f' ({extra_info})' if extra_info else '')
+        logger.info(full_message)
+        click.echo(full_message)
