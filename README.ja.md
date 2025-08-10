@@ -25,13 +25,13 @@ push-tmuxは、Pushbulletで受信したメッセージを自動的にtmuxセッ
 mise trust && mise install
 
 # 2. デバイス登録（複数デバイスを登録可能）
-push-tmux register  # 現在のディレクトリ名でデバイス登録
+push-tmux device register  # 現在のディレクトリ名でデバイス登録
 
 # 3. tmuxセッション作成（登録したデバイス名と同じ名前で）
 tmux new-session -s device-name -d  # 複数作成可能
 
 # 4. リスナー開始（すべてのデバイスを自動処理）
-push-tmux listen  # 自動ルーティングモードがデフォルト
+push-tmux start  # 自動ルーティングモードがデフォルト
 ```
 
 ### 2. ディレクトリベースのワークフロー
@@ -56,7 +56,7 @@ export DEVICE_NAME=webapp
 
 #### 3. デバイスを登録
 ```bash
-push-tmux register
+push-tmux device register
 # => デバイス 'webapp' を登録しました。
 ```
 
@@ -72,15 +72,15 @@ tmux attach -t webapp
 #### 5. リスナーを開始
 ```bash
 # デフォルト：自動ルーティングモード（すべてのデバイスのメッセージを処理）
-push-tmux listen
+push-tmux start
 # => 自動ルーティングモードで起動します
 
 # 特定デバイスのみ受信したい場合
-push-tmux listen --no-auto-route
+push-tmux start --no-auto-route
 # => デバイス 'webapp' (ID: xxx) として待ち受けます
 
 # デーモンモードで実行（推奨、自動再起動機能付き）
-push-tmux daemon
+push-tmux start --daemon
 # => 自動ルーティングモードでデーモンとして実行されます
 ```
 
@@ -149,67 +149,67 @@ log_file = ""              # ログファイルパス（空文字で標準出力
 ### デバイス管理
 ```bash
 # デバイスを登録
-push-tmux register
-push-tmux register --name custom-device
+push-tmux device register
+push-tmux device register --name custom-device
 
 # デバイス一覧を表示
-push-tmux list-devices
+push-tmux device list
 
 # デバイスを削除（インタラクティブ選択）
-push-tmux delete-devices
+push-tmux device delete
 
 # 特定デバイスを削除
-push-tmux delete-devices --name device-name
-push-tmux delete-devices --id device-id
+push-tmux device delete --name device-name
+push-tmux device delete --id device-id
 
 # 非アクティブデバイスも含めて削除
-push-tmux delete-devices --include-inactive
+push-tmux device delete --include-inactive
 ```
 
 ### メッセージ受信
 ```bash
 # デフォルト：自動ルーティングモード（すべてのデバイスを処理）
-push-tmux listen
+push-tmux start
 
 # 現在のデバイスのみ受信
-push-tmux listen --no-auto-route
+push-tmux start --no-auto-route
 
 # 特定のデバイスとして受信待機
-push-tmux listen --device other-device
+push-tmux start --device other-device
 
 # 全デバイスからのメッセージを受信（ルーティングなし）
-push-tmux listen --all-devices
+push-tmux start --all-devices
 
 # デバッグモードで実行
-push-tmux listen --debug
+push-tmux start --debug
 ```
 
 ### デーモンモード
 ```bash
 # デフォルト：自動ルーティングモードでデーモン実行
-push-tmux daemon
+push-tmux start --daemon
 
 # 現在のデバイスのみでデーモン実行
-push-tmux daemon --no-auto-route
+push-tmux start --daemon --no-auto-route
 
 # 全デバイスからのメッセージを受信
-push-tmux daemon --all-devices
+push-tmux start --daemon --all-devices
 
 # カスタム監視間隔
-push-tmux daemon --reload-interval 5.0
+push-tmux start --daemon --reload-interval 5.0
 
 # 追加ファイル監視
-push-tmux daemon --watch-files myconfig.ini --watch-files secrets.env
+push-tmux start --daemon --watch-files myconfig.ini --watch-files secrets.env
 
 # デバッグモード
-push-tmux daemon --debug
+push-tmux start --daemon --debug
 ```
 
 ### テスト
 ```bash
 # tmuxに直接メッセージを送信（テスト用）
-push-tmux send-key "test message"
-push-tmux send-key "test" --session mysession --window 0 --pane 1
+push-tmux send "test message"
+push-tmux send "test" --session mysession --window 0 --pane 1
 ```
 
 ## 実用例
@@ -220,16 +220,16 @@ push-tmux send-key "test" --session mysession --window 0 --pane 1
 # プロジェクトA
 cd ~/projects/project-a
 echo "DEVICE_NAME=project-a" > .env
-push-tmux register
+push-tmux device register
 tmux new -s project-a
-push-tmux daemon  # project-a宛のメッセージのみ受信（自動再起動付き）
+push-tmux start --daemon  # project-a宛のメッセージのみ受信（自動再起動付き）
 
 # プロジェクトB（別ターミナル）
 cd ~/projects/project-b
 echo "DEVICE_NAME=project-b" > .env
-push-tmux register
+push-tmux device register
 tmux new -s project-b
-push-tmux daemon  # project-b宛のメッセージのみ受信（自動再起動付き）
+push-tmux start --daemon  # project-b宛のメッセージのみ受信（自動再起動付き）
 ```
 
 ### デバイスマッピングの使用例
@@ -259,14 +259,14 @@ pane = "first"     # 最初のペイン（デフォルト）
 tmux new -s frontend
 cd ~/projects/mobile-app
 export DEVICE_NAME=mobile-dev
-push-tmux register
-push-tmux listen  # mobile-dev宛のメッセージをfrontendセッションで受信
+push-tmux device register
+push-tmux start  # mobile-dev宛のメッセージをfrontendセッションで受信
 
 # backend-apiの場合、backendセッションのwindow 1, pane 2に送信される
 cd ~/projects/api
 export DEVICE_NAME=backend-api
-push-tmux register
-push-tmux listen  # メッセージが特定のウィンドウ・ペインに送信される
+push-tmux device register
+push-tmux start  # メッセージが特定のウィンドウ・ペインに送信される
 ```
 
 ### 自動ルーティングモード
@@ -276,7 +276,7 @@ push-tmux listen  # メッセージが特定のウィンドウ・ペインに送
 ```bash
 # すべてのデバイスのメッセージを受信し、
 # デバイス名と同じtmuxセッションに自動送信
-push-tmux daemon  # 自動ルーティングがデフォルト
+push-tmux start --daemon  # 自動ルーティングがデフォルト
 
 # セッション準備
 tmux new -s project-a -d
@@ -296,13 +296,13 @@ PROJECT_NAME=$(basename $(pwd))
 export DEVICE_NAME=$PROJECT_NAME
 
 # デバイス登録
-push-tmux register
+push-tmux device register
 
 # tmuxセッション開始
 tmux new-session -d -s $PROJECT_NAME
 
 # push-tmuxデーモンを開始（自動再起動付き）
-tmux send-keys -t $PROJECT_NAME "push-tmux daemon" C-m
+tmux send-keys -t $PROJECT_NAME "push-tmux start --daemon" C-m
 
 # セッションにアタッチ
 tmux attach -t $PROJECT_NAME
@@ -323,7 +323,7 @@ Type=simple
 User=your-user
 WorkingDirectory=/path/to/project
 Environment=PUSHBULLET_TOKEN=your-token
-ExecStart=/path/to/venv/bin/push-tmux daemon --auto-route
+ExecStart=/path/to/venv/bin/push-tmux start --daemon --auto-route
 Restart=always
 
 [Install]
@@ -336,7 +336,7 @@ WantedBy=multi-user.target
 
 1. デバイスが正しく登録されているか確認
    ```bash
-   push-tmux list-devices
+   push-tmux device list
    ```
 
 2. 正しいデバイス宛にメッセージを送信しているか確認
@@ -367,13 +367,13 @@ WantedBy=multi-user.target
 1. ログを確認
    ```bash
    # デバッグモードで実行
-   push-tmux daemon --debug
+   push-tmux start --daemon --debug
    ```
 
 2. 監視間隔を調整
    ```bash
    # 監視間隔を長くする
-   push-tmux daemon --reload-interval 5.0
+   push-tmux start --daemon --reload-interval 5.0
    ```
 
 3. 監視ファイルを確認

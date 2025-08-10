@@ -31,13 +31,13 @@ push-tmux is a tool that automatically sends messages received via Pushbullet to
 mise trust && mise install
 
 # 2. Register devices (multiple devices can be registered)
-push-tmux register  # Registers device with current directory name
+push-tmux device register  # Registers device with current directory name
 
 # 3. Create tmux sessions (with same names as registered devices)
 tmux new-session -s device-name -d  # Can create multiple
 
 # 4. Start listener (automatically handles all devices)
-push-tmux listen  # Auto-routing mode is default
+push-tmux start  # Auto-routing mode is default
 ```
 
 ### 2. Directory-based Workflow
@@ -62,7 +62,7 @@ Note: If `DEVICE_NAME` is not set, the current directory name will be used autom
 
 #### 3. Register Device
 ```bash
-push-tmux register
+push-tmux device register
 # => Device 'webapp' has been registered.
 ```
 
@@ -78,15 +78,15 @@ tmux attach -t webapp
 #### 5. Start Listener
 ```bash
 # Default: Auto-routing mode (handles all devices' messages)
-push-tmux listen
+push-tmux start
 # => Starting in auto-routing mode
 
 # To receive only specific device's messages
-push-tmux listen --no-auto-route
+push-tmux start --no-auto-route
 # => Listening as device 'webapp' (ID: xxx)
 
 # Run in daemon mode (recommended, with auto-restart)
-push-tmux daemon
+push-tmux start --daemon
 # => Running in auto-routing mode as daemon
 ```
 
@@ -109,8 +109,8 @@ After installation, you can run `push-tmux` from anywhere:
 
 ```bash
 cd /any/directory
-push-tmux register
-push-tmux listen
+push-tmux device register
+push-tmux start
 push-tmux --help
 ```
 
@@ -133,7 +133,7 @@ cd push-tmux
 
 The DevContainer includes:
 - **Python 3.12** with mise and uv pre-configured
-- **All development tools**: ruff, mypy, pytest, tmux
+- **All development tools**: ruff, pyright, pytest, tmux
 - **VS Code extensions** for Python development
 - **Automatic setup** of dependencies and test environment
 
@@ -162,7 +162,7 @@ This project uses GitHub Actions for continuous integration and deployment:
 
 - **CI Pipeline** (`ci.yml`) - Comprehensive testing on push/PR
   - Multi-job testing: unit tests, integration tests, build checks
-  - Code quality: ruff formatting/linting, mypy type checking
+  - Code quality: ruff formatting/linting, pyright type checking
   - Security scanning with safety and bandit
   - Coverage reporting with Codecov integration
 
@@ -246,64 +246,64 @@ pane = "2"         # Third pane (index 2)
 ### Device Management
 ```bash
 # Register device
-push-tmux register
-push-tmux register --name custom-device
+push-tmux device register
+push-tmux device register --name custom-device
 
 # List devices
-push-tmux list-devices
+push-tmux device list
 
 # Delete devices (interactive selection)
-push-tmux delete-devices
+push-tmux device delete
 
 # Delete specific device
-push-tmux delete-devices --name device-name
-push-tmux delete-devices --id device-id
+push-tmux device delete --name device-name
+push-tmux device delete --id device-id
 ```
 
 ### Message Reception
 ```bash
 # Default: Auto-routing mode (handles all devices)
-push-tmux listen
+push-tmux start
 
 # Receive only current device's messages
-push-tmux listen --no-auto-route
+push-tmux start --no-auto-route
 
 # Listen as specific device
-push-tmux listen --device other-device
+push-tmux start --device other-device
 
 # Receive all devices' messages (no routing)
-push-tmux listen --all-devices
+push-tmux start --all-devices
 
 # Debug mode
-push-tmux listen --debug
+push-tmux start --debug
 ```
 
 ### Daemon Mode
 ```bash
 # Default: Auto-routing daemon mode
-push-tmux daemon
+push-tmux start --daemon
 
 # Daemon for current device only
-push-tmux daemon --no-auto-route
+push-tmux start --daemon --no-auto-route
 
 # Receive all devices' messages
-push-tmux daemon --all-devices
+push-tmux start --daemon --all-devices
 
 # Custom reload interval
-push-tmux daemon --reload-interval 5.0
+push-tmux start --daemon --reload-interval 5.0
 
 # Watch additional files
-push-tmux daemon --watch-files myconfig.ini --watch-files secrets.env
+push-tmux start --daemon --watch-files myconfig.ini --watch-files secrets.env
 
 # Debug mode
-push-tmux daemon --debug
+push-tmux start --daemon --debug
 ```
 
 ### Test
 ```bash
 # Send message directly to tmux (for testing)
-push-tmux send-key "test message"
-push-tmux send-key "test" --session mysession --window 0 --pane 1
+push-tmux send "test message"
+push-tmux send "test" --session mysession --window 0 --pane 1
 ```
 
 ## Practical Examples
@@ -314,16 +314,16 @@ push-tmux send-key "test" --session mysession --window 0 --pane 1
 # Project A
 cd ~/projects/project-a
 echo "DEVICE_NAME=project-a" > .env
-push-tmux register
+push-tmux device register
 tmux new -s project-a
-push-tmux daemon  # Receives only project-a messages (with auto-restart)
+push-tmux start --daemon  # Receives only project-a messages (with auto-restart)
 
 # Project B (in another terminal)
 cd ~/projects/project-b
 echo "DEVICE_NAME=project-b" > .env
-push-tmux register
+push-tmux device register
 tmux new -s project-b
-push-tmux daemon  # Receives only project-b messages (with auto-restart)
+push-tmux start --daemon  # Receives only project-b messages (with auto-restart)
 ```
 
 ### Auto-Routing Mode
@@ -333,7 +333,7 @@ Useful when handling multiple projects simultaneously:
 ```bash
 # Receive messages for all devices and
 # automatically send to matching tmux sessions
-push-tmux daemon
+push-tmux start --daemon
 
 # Prepare sessions
 tmux new -s project-a -d
@@ -365,8 +365,8 @@ pane = "2"         # Third pane (index 2)
 tmux new -s frontend
 cd ~/projects/mobile-app
 export DEVICE_NAME=mobile-dev
-push-tmux register
-push-tmux listen  # mobile-dev messages received in frontend session
+push-tmux device register
+push-tmux start  # mobile-dev messages received in frontend session
 ```
 
 ### Scripting
@@ -379,13 +379,13 @@ PROJECT_NAME=$(basename $(pwd))
 export DEVICE_NAME=$PROJECT_NAME
 
 # Register device
-push-tmux register
+push-tmux device register
 
 # Start tmux session
 tmux new-session -d -s $PROJECT_NAME
 
-# Start push-tmux daemon (with auto-restart)
-tmux send-keys -t $PROJECT_NAME "push-tmux daemon" C-m
+# Start push-tmux start --daemon (with auto-restart)
+tmux send-keys -t $PROJECT_NAME "push-tmux start --daemon" C-m
 
 # Attach to session
 tmux attach -t $PROJECT_NAME
@@ -397,7 +397,7 @@ tmux attach -t $PROJECT_NAME
 
 1. Check if device is registered correctly
    ```bash
-   push-tmux list-devices
+   push-tmux device list
    ```
 
 2. Verify you're sending to the correct device
