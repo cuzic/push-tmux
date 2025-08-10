@@ -183,15 +183,14 @@ This project uses GitHub Actions for continuous integration and deployment:
 
 ### 🛡️ **Quality Gates**
 
-All workflows use **mise + uv** for consistent environment management:
+All workflows use **mise** for unified tool management:
 ```yaml
 - name: Install mise
   uses: jdx/mise-action@v2
-- name: Install uv  
-  uses: astral-sh/setup-uv@v3
-- name: Setup environment
+- name: Set up Python and uv with mise
   run: |
-    mise trust && mise install
+    mise trust
+    mise install  # Installs both Python and uv via .mise.toml
     uv sync --extra test
 ```
 

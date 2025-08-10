@@ -23,16 +23,11 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
-    - name: Set up Python environment with mise
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # This installs both Python and uv as defined in .mise.toml
         
     - name: Cache uv dependencies
       uses: actions/cache@v4
@@ -81,19 +76,14 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
     - name: Install tmux for integration testing
       run: sudo apt-get update && sudo apt-get install -y tmux
       
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync --extra test
         
     - name: Run integration tests
@@ -123,16 +113,11 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync --extra test
         
     - name: Test package installation
@@ -169,15 +154,10 @@ jobs:
       with:
         version: latest
         
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
-        
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync --extra test
         
     - name: Run safety check

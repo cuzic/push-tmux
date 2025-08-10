@@ -23,16 +23,11 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync --extra test
         
     - name: Run full test suite
@@ -63,16 +58,11 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync
         
     - name: Build distribution packages
@@ -115,16 +105,11 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: latest
-        
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: latest
     
-    - name: Set up Python environment
+    - name: Set up Python and uv with mise
       run: |
         mise trust
-        mise install
+        mise install  # Installs both Python and uv
         uv sync
         
     - name: Build distribution packages
