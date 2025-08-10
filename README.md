@@ -1,5 +1,11 @@
 # push-tmux
 
+[![CI](https://github.com/cuzic/push-tmux/workflows/CI/badge.svg)](https://github.com/cuzic/push-tmux/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cuzic/push-tmux/branch/master/graph/badge.svg)](https://codecov.io/gh/cuzic/push-tmux)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 A CLI tool to send Pushbullet messages to specific tmux sessions
 
 ## Overview
@@ -146,6 +152,47 @@ uv sync --extra test
 
 # Run tests
 uv run pytest
+```
+
+## CI/CD Pipeline
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+### 🔄 **Workflows**
+
+- **CI Pipeline** (`ci.yml`) - Comprehensive testing on push/PR
+  - Multi-job testing: unit tests, integration tests, build checks
+  - Code quality: ruff formatting/linting, mypy type checking
+  - Security scanning with safety and bandit
+  - Coverage reporting with Codecov integration
+
+- **PR Check** (`pr-check.yml`) - Fast feedback for pull requests
+  - Quick linting and formatting checks
+  - Targeted test execution
+  - PR analysis with change statistics
+
+- **Release** (`release.yml`) - Automated package publishing
+  - Full test suite before release
+  - PyPI publishing with trusted publishing
+  - Release artifact creation
+
+- **Dependencies** (`dependencies.yml`) - Automated maintenance
+  - Weekly dependency updates via PRs
+  - Security vulnerability scanning
+  - Automated issue creation for security alerts
+
+### 🛡️ **Quality Gates**
+
+All workflows use **mise + uv** for consistent environment management:
+```yaml
+- name: Install mise
+  uses: jdx/mise-action@v2
+- name: Install uv  
+  uses: astral-sh/setup-uv@v3
+- name: Setup environment
+  run: |
+    mise trust && mise install
+    uv sync --extra test
 ```
 
 ## How It Works

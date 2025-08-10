@@ -1,0 +1,176 @@
+name: Dependencies Update
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        version: latest
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: latest
+    
+    - name: Set up Python environment
+      run: |
+        mise trust
+        mise install
+        
+    - name: Update Python dependencies
+      run: |
+        # Update dependencies to latest versions
+        uv lock --upgrade
+        uv sync --extra test
+        
+    - name: Run tests with updated dependencies
+      run: |
+        uv run pytest --tb=short -x
+        
+    - name: Run linting with updated dependencies
+      run: |
+        uv run ruff check .
+        uv run ruff format --check .
+        
+    - name: Check for changes
+      id: check-changes
+      run: |
+        if git diff --quiet uv.lock; then
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No dependency updates available"
+        else
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "Dependency updates found"
+        fi
+        
+    - name: Create Pull Request
+      if: steps.check-changes.outputs.changes == 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore: update dependencies"
+        title: "🔄 Weekly dependency update"
+        body: |
+          ## 🔄 Automated Dependency Update
+          
+          This PR updates project dependencies to their latest versions.
+          
+          ### Changes
+          - Updated `uv.lock` with latest dependency versions
+          - All tests pass with updated dependencies
+          - Code formatting and linting checks pass
+          
+          ### Review Checklist
+          - [ ] Check for any breaking changes in updated dependencies
+          - [ ] Verify all tests pass
+          - [ ] Check for any new security advisories
+          
+          ---
+          *This PR was created automatically by the dependency update workflow.*
+        branch: chore/update-dependencies
+        delete-branch: true
+        draft: false
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        version: latest
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: latest
+    
+    - name: Set up Python environment
+      run: |
+        mise trust
+        mise install
+        uv sync --extra test
+        
+    - name: Run security audit
+      run: |
+        # Install and run safety for security vulnerabilities
+        uv add --dev safety
+        uv run safety check --json --output security-audit.json || true
+        
+    - name: Run pip-audit
+      run: |
+        # Install and run pip-audit for additional security checks
+        uv add --dev pip-audit
+        uv run pip-audit --format=json --output=pip-audit.json || true
+        
+    - name: Upload security audit results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-audit-results
+        path: |
+          security-audit.json
+          pip-audit.json
+        retention-days: 90
+        
+    - name: Create issue on security vulnerabilities
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = '🚨 Security vulnerabilities detected in dependencies';
+          const body = `
+          ## Security Alert
+          
+          Automated security audit has detected potential vulnerabilities in project dependencies.
+          
+          **Workflow run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          Please review the security audit results and update vulnerable dependencies.
+          
+          ### Next Steps
+          1. Download and review the security audit artifacts from the workflow run
+          2. Update vulnerable dependencies using \`uv lock --upgrade\`
+          3. Test the updated dependencies
+          4. Close this issue once vulnerabilities are resolved
+          
+          ---
+          *This issue was created automatically by the security audit workflow.*
+          `;
+          
+          // Check if similar issue already exists
+          const existingIssues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: ['security', 'dependencies'],
+            state: 'open'
+          });
+          
+          if (existingIssues.data.length === 0) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'dependencies', 'automated']
+            });
+          }

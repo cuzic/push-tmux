@@ -1,0 +1,124 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quick-check:
+    name: Quick PR Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        version: latest
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: latest
+    
+    - name: Set up Python environment
+      run: |
+        mise trust
+        mise install
+        
+    - name: Cache uv dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+        restore-keys: |
+          uv-${{ runner.os }}-
+          
+    - name: Install dependencies
+      run: uv sync --extra test
+      
+    - name: Run formatting check
+      run: uv run ruff format --check .
+      
+    - name: Run linting
+      run: uv run ruff check .
+      
+    - name: Run quick tests
+      run: uv run pytest -x --tb=short --maxfail=5
+      
+    - name: Check imports and basic functionality
+      run: |
+        uv run python -c "import push_tmux; print('✅ Import successful')"
+        uv run python -m push_tmux --help > /dev/null
+        echo "✅ CLI help works"
+
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for better diff analysis
+      
+    - name: Install mise
+      uses: jdx/mise-action@v2
+      with:
+        version: latest
+        
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: latest
+    
+    - name: Set up Python environment
+      run: |
+        mise trust
+        mise install
+        uv sync --extra test
+        
+    - name: Analyze changes
+      run: |
+        echo "## 📊 PR Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Count changed files
+        CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | wc -l)
+        echo "- **Changed files**: $CHANGED_FILES" >> $GITHUB_STEP_SUMMARY
+        
+        # Count Python files changed
+        PY_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.py$' | wc -l)
+        echo "- **Python files**: $PY_FILES" >> $GITHUB_STEP_SUMMARY
+        
+        # Count test files changed
+        TEST_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E 'test_.*\.py$|.*_test\.py$' | wc -l)
+        echo "- **Test files**: $TEST_FILES" >> $GITHUB_STEP_SUMMARY
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📝 Changed Files" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        git diff --name-only origin/${{ github.base_ref }}...HEAD >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Run tests with coverage on changed code
+      run: |
+        # Run tests and generate coverage for changed files only
+        if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.py$' | grep -v test_; then
+          echo "Running targeted tests for changed Python files..."
+          uv run pytest --cov=push_tmux --cov-report=term-missing --cov-report=json
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📈 Test Coverage" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract coverage percentage if available
+          if [ -f coverage.json ]; then
+            COVERAGE=$(python -c "import json; data=json.load(open('coverage.json')); print(f\"{data['totals']['percent_covered']:.1f}%\")")
+            echo "- **Overall Coverage**: $COVERAGE" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "No Python source files changed, skipping coverage analysis."
+        fi
