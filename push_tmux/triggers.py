@@ -162,12 +162,105 @@ class TriggerPattern:
                 target_device = target_device.format(**variables)
             except KeyError:
                 pass  # Keep original if expansion fails
+            
+            # Apply transformations
+            target_device = self._apply_transformations(target_device, action_config, variables)
         
         return {
             'command': expanded_template,
             'target_device': target_device,  # This will be used as target session
             'variables': variables  # Include for debugging/logging
         }
+    
+    def _apply_transformations(self, value: str, action_config: Dict[str, Any], variables: Dict[str, Any]) -> str:
+        """Apply transformations like mapping and string functions to a value"""
+        if not value:
+            return value
+        
+        # Apply mapping table if defined
+        mapping = action_config.get('mapping', {})
+        if mapping and value in mapping:
+            value = mapping[value]
+        
+        # Apply string functions if defined
+        transforms = action_config.get('transforms', [])
+        for transform in transforms:
+            value = self._apply_string_function(value, transform, variables)
+        
+        return value
+    
+    def _apply_string_function(self, value: str, transform: str, variables: Dict[str, Any]) -> str:
+        """Apply a string function transformation"""
+        try:
+            # Parse function call format: func(args)
+            if '(' not in transform or ')' not in transform:
+                return value
+            
+            func_name = transform[:transform.index('(')].strip()
+            args_str = transform[transform.index('(') + 1:transform.rindex(')')].strip()
+            
+            # Handle different functions
+            if func_name == 'substr':
+                # substr(start, length) or substr(start)
+                args = [arg.strip() for arg in args_str.split(',')]
+                if len(args) >= 1:
+                    start = self._resolve_arg(args[0], variables)
+                    if len(args) >= 2:
+                        length = self._resolve_arg(args[1], variables)
+                        return value[start:start + length]
+                    else:
+                        return value[start:]
+            
+            elif func_name == 'lower':
+                return value.lower()
+            
+            elif func_name == 'upper':
+                return value.upper()
+            
+            elif func_name == 'replace':
+                # replace(old, new)
+                args = [arg.strip().strip('"\'') for arg in args_str.split(',', 1)]
+                if len(args) >= 2:
+                    return value.replace(args[0], args[1])
+            
+            elif func_name == 'prefix':
+                # prefix(string)
+                prefix_str = args_str.strip('"\'')
+                return prefix_str + value
+            
+            elif func_name == 'suffix':
+                # suffix(string)
+                suffix_str = args_str.strip('"\'')
+                return value + suffix_str
+            
+            elif func_name == 'truncate':
+                # truncate(length)
+                length = self._resolve_arg(args_str, variables)
+                return value[:length]
+            
+        except Exception as e:
+            click.echo(f"Error applying transform '{transform}': {e}", err=True)
+        
+        return value
+    
+    def _resolve_arg(self, arg: str, variables: Dict[str, Any]) -> int:
+        """Resolve an argument that might be a number or variable"""
+        arg = arg.strip()
+        
+        # Try as integer
+        try:
+            return int(arg)
+        except ValueError:
+            pass
+        
+        # Try as variable reference
+        if arg in variables:
+            try:
+                return int(variables[arg])
+            except (ValueError, TypeError):
+                pass
+        
+        return 0
     
     def _update_execution_tracking(self, trigger_name: str):
         """Update execution tracking for cooldown and rate limiting"""

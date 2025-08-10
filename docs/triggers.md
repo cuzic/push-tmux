@@ -108,6 +108,44 @@ action = {
 }
 ```
 
+#### Mapping Tables
+
+Use mapping tables to translate values to session names:
+
+```toml
+action = {
+    template = "deploy.sh",
+    target_device = "{group1}",
+    mapping = {
+        "dev" = "development",
+        "prod" = "production",
+        "test" = "testing"
+    }
+}
+```
+
+#### String Transformation Functions
+
+Apply string functions to transform the target device name:
+
+```toml
+action = {
+    template = "process.sh",
+    target_device = "{group1}",
+    transforms = [
+        "lower()",           # Convert to lowercase
+        "upper()",           # Convert to uppercase
+        "substr(0, 5)",      # Substring (start, length)
+        "replace(-, _)",     # Replace characters
+        "prefix(session_)",  # Add prefix
+        "suffix(_logs)",     # Add suffix
+        "truncate(15)"       # Limit length
+    ]
+}
+```
+
+Transformations are applied in sequence after mapping:
+
 ## Execution Conditions
 
 ### Cooldown Period
@@ -141,6 +179,55 @@ conditions = {
 ```
 
 ## Examples
+
+### Using Mapping and Transforms
+
+```toml
+[triggers.environment_router]
+match = {
+    pattern = "deploy to (\\w+)",
+    from_devices = ["ci-server"]
+}
+action = {
+    template = "cd /app && deploy.sh",
+    target_device = "{group1}",
+    # First apply mapping
+    mapping = {
+        "dev" = "development-server",
+        "prod" = "production-server"
+    },
+    # Then apply transforms
+    transforms = [
+        "suffix(_deploy)",
+        "truncate(20)"
+    ]
+}
+```
+
+For message "deploy to dev":
+1. Captures "dev" as group1
+2. Maps "dev" → "development-server"
+3. Applies suffix → "development-server_deploy"
+4. Truncates to 20 chars → "development-server_d"
+
+### Complex Session Naming
+
+```toml
+[triggers.branch_router]
+match = {
+    pattern = "build branch:(\\S+)"
+}
+action = {
+    template = "git checkout {group1} && make build",
+    target_device = "{group1}",
+    transforms = [
+        "lower()",          # feature/NEW-123 → feature/new-123
+        "replace(/, _)",    # feature/new-123 → feature_new-123
+        "prefix(build_)",   # feature_new-123 → build_feature_new-123
+        "truncate(15)"      # build_feature_new-123 → build_feature_n
+    ]
+}
+```
 
 ### Error Monitoring
 

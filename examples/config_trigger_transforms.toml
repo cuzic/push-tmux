@@ -1,0 +1,170 @@
+[tmux]
+use_device_name_as_session = true
+enter_delay = 1.0
+
+# Example: Simple mapping table
+[triggers.env_mapper]
+match = {
+    pattern = "deploy to (\\w+)",
+    from_devices = ["ci-server"]
+}
+action = {
+    template = "cd /app && ./deploy.sh",
+    target_device = "{group1}",
+    # Map short names to full session names
+    mapping = {
+        "dev" = "development",
+        "prod" = "production", 
+        "test" = "testing",
+        "qa" = "quality-assurance"
+    }
+}
+
+# Example: String transformations
+[triggers.branch_deploy]
+match = {
+    pattern = "deploy branch:(\\S+)",
+    from_devices = ["github", "gitlab"]
+}
+action = {
+    template = "git checkout {group1} && npm run build",
+    target_device = "{group1}",
+    # Apply transformations in sequence
+    transforms = [
+        "lower()",              # Convert to lowercase
+        "replace(/, _)",        # Replace slashes with underscores
+        "prefix(branch_)",      # Add prefix
+        "truncate(20)"          # Limit length to 20 chars
+    ]
+}
+
+# Example: Substring extraction
+[triggers.session_router]
+match = {
+    pattern = "route to (\\w+)-(\\w+)-(\\w+)"
+}
+action = {
+    template = "echo 'Routing to {group1}'",
+    target_device = "{group1}",
+    transforms = [
+        "substr(0, 3)",  # Take first 3 characters
+        "upper()"        # Convert to uppercase
+    ]
+}
+
+# Example: Complex routing with mapping and transforms
+[triggers.server_commands]
+match = {
+    pattern = "(\\w+)@(\\w+):(\\w+)",  # user@server:action
+    from_devices = ["controller"]
+}
+action = {
+    template = "./server_cmd.sh --user={group1} --action={group3}",
+    target_device = "{group2}_{group3}",
+    # First apply mapping
+    mapping = {
+        "db_backup" = "database-backup-session",
+        "web_restart" = "webserver-control",
+        "log_check" = "log-monitoring"
+    },
+    # Then apply transforms
+    transforms = [
+        "lower()",
+        "replace(-, _)"
+    ]
+}
+
+# Example: Dynamic session naming with source device
+[triggers.alert_router]
+match = {
+    pattern = "ALERT: (.+)",
+    case_sensitive = true
+}
+action = {
+    template = "handle_alert.sh '{group1}'",
+    target_device = "{source_device}",
+    # Map device names to monitoring sessions
+    mapping = {
+        "prod-server" = "production-monitoring",
+        "dev-server" = "development-monitoring",
+        "test-server" = "test-monitoring"
+    },
+    transforms = [
+        "suffix(_alerts)"  # Add suffix if not mapped
+    ]
+}
+
+# Example: Prefix/suffix functions
+[triggers.log_viewer]
+match = {
+    pattern = "show logs for (\\w+)"
+}
+action = {
+    template = "tail -f /var/log/{group1}.log",
+    target_device = "{group1}",
+    transforms = [
+        "lower()",
+        "prefix(logs_)",     # Prefix with "logs_"
+        "suffix(_viewer)"    # Suffix with "_viewer"
+    ]
+}
+
+# Example: Replace function for sanitization
+[triggers.safe_session]
+match = {
+    pattern = "connect to (.+)"
+}
+action = {
+    template = "ssh {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "lower()",
+        "replace(., _)",     # Replace dots with underscores
+        "replace( , _)",     # Replace spaces with underscores
+        "replace(-, _)",     # Replace dashes with underscores
+        "truncate(15)"       # Limit to 15 characters
+    ]
+}
+
+# Example: Combining multiple capture groups
+[triggers.multi_group]
+match = {
+    pattern = "(\\w+) in (\\w+) for (\\w+)"  # action in environment for project
+}
+action = {
+    template = "execute_{group1}.sh",
+    target_device = "{group3}_{group2}",
+    mapping = {
+        "myapp_prod" = "myapp-production",
+        "myapp_dev" = "myapp-development",
+        "api_prod" = "api-production"
+    },
+    transforms = [
+        "lower()"
+    ]
+}
+
+# Example: Using string length in substr
+[triggers.abbreviate]
+match = {
+    pattern = "session:(\\S+)"
+}
+action = {
+    template = "tmux attach -t {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "substr(0, 10)",     # Take first 10 characters
+        "lower()",
+        "suffix(_sess)"
+    ]
+}
+
+# Example: No mapping or transform (passthrough)
+[triggers.direct_route]
+match = {
+    pattern = "direct:(\\S+)"
+}
+action = {
+    template = "echo 'Direct routing'",
+    target_device = "{group1}"  # Use capture group as-is
+}
