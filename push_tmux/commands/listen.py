@@ -11,6 +11,7 @@ from ..config import load_config, get_device_name
 from ..device import _resolve_target_device, _find_device_by_name_or_id, _resolve_specific_device, _resolve_default_device, _get_device_attr
 from ..tmux import send_to_tmux
 from ..slash_commands import expand_slash_command, check_trigger_conditions
+from ..triggers import check_triggers, process_trigger_actions
 
 
 async def _display_auto_route_devices(api_key):
@@ -87,11 +88,22 @@ def _create_auto_route_handler(api_key, config):
             if not device_name:
                 return
             
+            # Get source device name
+            source_device_iden = push.get('source_device_iden', '')
+            source_device = next((d for d in devices if _get_device_attr(d, 'iden') == source_device_iden), None)
+            source_device_name = _get_device_attr(source_device, 'nickname') if source_device else 'unknown'
+            
             # 同名のtmuxセッションが存在するかチェック
             from ..tmux import _check_session_exists
             if await _check_session_exists(device_name):
                 message = push.get('body', '')
                 if message:
+                    # Check for triggers first
+                    trigger_actions = check_triggers(message, source_device_name, config)
+                    if trigger_actions:
+                        await process_trigger_actions(trigger_actions, config, api_key)
+                        return
+                    
                     # Check if it's a slash command
                     is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
                     
@@ -110,7 +122,7 @@ def _create_auto_route_handler(api_key, config):
     return on_push_auto_route
 
 
-def _create_specific_device_handler(config, target_device_iden, device_name):
+def _create_specific_device_handler(config, target_device_iden, device_name, api_key):
     """特定デバイス用のハンドラーを作成"""
     async def on_push(push):
         # noteタイプのみ処理
@@ -127,6 +139,25 @@ def _create_specific_device_handler(config, target_device_iden, device_name):
         
         message = push.get('body', '')
         if message:
+            # Get source device name
+            source_device_iden = push.get('source_device_iden', '')
+            source_device_name = 'unknown'
+            if source_device_iden and api_key:
+                try:
+                    async with AsyncPushbullet(api_key) as pb:
+                        devices = pb.get_devices()
+                        source_device = next((d for d in devices if _get_device_attr(d, 'iden') == source_device_iden), None)
+                        if source_device:
+                            source_device_name = _get_device_attr(source_device, 'nickname')
+                except:
+                    pass
+            
+            # Check for triggers first
+            trigger_actions = check_triggers(message, source_device_name, config)
+            if trigger_actions:
+                await process_trigger_actions(trigger_actions, config, api_key)
+                return
+            
             # Check if it's a slash command
             is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
             
@@ -200,7 +231,7 @@ async def _setup_specific_device_handler(api_key, config, device, target_device_
     target_device = await _resolve_specific_device(api_key, device) if device else await _resolve_default_device(api_key)
     device_name = _get_device_attr(target_device, 'nickname') if target_device else get_device_name()
     click.echo(f"デバイス '{device_name}' のメッセージを待機します...")
-    return _create_specific_device_handler(config, target_device_iden, device_name)
+    return _create_specific_device_handler(config, target_device_iden, device_name, api_key)
 
 
 def _show_device_registration_message():

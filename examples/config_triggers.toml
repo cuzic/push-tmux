@@ -1,0 +1,123 @@
+[tmux]
+use_device_name_as_session = true
+enter_delay = 1.0
+
+# Pattern-based triggers
+[triggers.error_detector]
+# Match conditions
+match = {
+    pattern = "ERROR|CRITICAL|FATAL",  # Regular expression
+    case_sensitive = false,
+    from_devices = ["monitoring", "server"]  # Only process from these devices
+}
+# Action to execute when triggered
+action = {
+    template = "notify-send 'Error Alert' 'Error detected from {source_device}: {match_text}'",
+    target_session = "monitoring",
+    # Send notification back to Pushbullet
+    send_to_pushbullet = true,
+    target_device = "{source_device}",  # Send back to source device
+    pushbullet_title = "Error Processed"
+}
+# Execution conditions
+conditions = {
+    cooldown = 60,  # Wait 60 seconds before triggering again
+    max_per_hour = 10  # Maximum 10 triggers per hour
+}
+
+[triggers.deployment_trigger]
+match = {
+    pattern = "deploy (\\w+) to (\\w+)",  # Capture groups
+    regex = true
+}
+action = {
+    template = "cd /app && ./deploy.sh {group1} {group2}",  # group1=branch, group2=environment
+    target_session = "deploy",
+    send_to_pushbullet = true,
+    target_device = "build-server",
+    pushbullet_title = "Deployment Started"
+}
+conditions = {
+    execute_once = true  # Only execute once until reset
+}
+
+[triggers.backup_request]
+match = {
+    pattern = "backup database (\\w+)",
+    from_devices = ["admin", "backup-controller"]
+}
+action = {
+    template = "pg_dump {group1} > /backups/{group1}_{date}_{time}.sql",
+    target_session = "backup"
+}
+conditions = {
+    cooldown = 3600  # One hour cooldown
+}
+
+[triggers.log_monitor]
+match = {
+    pattern = "check logs for (.*)",
+    case_sensitive = false
+}
+action = {
+    template = "tail -f /var/log/app.log | grep -i '{group1}'",
+    target_session = "logs",
+    send_to_pushbullet = true,
+    target_device = "{source_device}",
+    pushbullet_title = "Log search started for: {group1}"
+}
+
+[triggers.system_alert]
+match = {
+    pattern = "CPU usage: (\\d+)%",
+    regex = true
+}
+action = {
+    # Use captured value in condition check
+    template = "if [ {group1} -gt 80 ]; then systemctl restart app-service; fi",
+    target_session = "system"
+}
+conditions = {
+    cooldown = 300  # 5 minute cooldown
+}
+
+[triggers.test_runner]
+match = {
+    pattern = "run tests? (\\w+)",
+    from_devices = ["dev-machine", "ci-server"]
+}
+action = {
+    template = "cd /project && pytest tests/{group1} -v --tb=short",
+    target_session = "test",
+    send_to_pushbullet = true,
+    target_device = "{source_device}",
+    pushbullet_title = "Tests completed for {group1}"
+}
+
+[triggers.notification_relay]
+match = {
+    pattern = "notify: (.*)",
+    case_sensitive = false
+}
+action = {
+    template = "echo '[{timestamp}] Notification from {source_device}: {group1}' >> /var/log/notifications.log",
+    send_to_pushbullet = true,
+    target_device = "admin-phone",  # Forward to admin's phone
+    pushbullet_title = "Relay from {source_device}"
+}
+
+[triggers.command_injection_protection]
+# Example of a safety trigger
+match = {
+    pattern = ";|&&|\\||`|\\$\\(",  # Detect potential command injection
+    regex = true
+}
+action = {
+    template = "echo 'Blocked potentially dangerous command from {source_device} at {timestamp}' >> /var/log/security.log",
+    send_to_pushbullet = true,
+    target_device = "security-monitor",
+    pushbullet_title = "Security Alert"
+}
+conditions = {
+    max_per_hour = 100  # Rate limit to prevent spam
+}
