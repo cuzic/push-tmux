@@ -21,23 +21,22 @@ class TestMainCLI:
         assert result.exit_code == 0
         assert "Pushbulletのメッセージをtmuxに送信するCLIツール" in result.output
         assert "Commands:" in result.output
-        assert "register" in result.output
-        assert "list-devices" in result.output
-        assert "listen" in result.output
+        assert "device" in result.output
+        assert "start" in result.output
+        assert "send" in result.output
     
     def test_command_help(self, runner):
         """個別コマンドのヘルプ"""
-        commands = ["register", "list-devices", "listen"]
+        commands = ["device", "start", "send"]
         
         for cmd in commands:
             result = runner.invoke(cli, [cmd, "--help"])
             assert result.exit_code == 0
             assert "Usage:" in result.output
-            assert cmd in result.output
 
 
-class TestRegisterCommand:
-    """registerコマンドのテスト"""
+class TestDeviceCommands:
+    """device サブコマンドのテスト"""
     
     @pytest.fixture
     def runner(self):
@@ -46,7 +45,7 @@ class TestRegisterCommand:
     def test_register_no_api_key(self, runner):
         """APIキーがない場合のテスト"""
         with patch.dict(os.environ, {}, clear=True):
-            result = runner.invoke(cli, ['register'])
+            result = runner.invoke(cli, ['device', 'register'])
             assert result.exit_code == 0
             assert "PUSHBULLET_TOKEN環境変数が設定されていません" in result.output
     
@@ -64,7 +63,7 @@ class TestRegisterCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['register', '--name', 'test_device'])
+                result = runner.invoke(cli, ['device', 'register', '--name', 'test_device'])
                 assert result.exit_code == 0
                 assert "デバイス 'test_device' を登録しました" in result.output
                 assert "new_device_id" in result.output
@@ -85,14 +84,14 @@ class TestRegisterCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['register', '--name', 'test_device'])
+                result = runner.invoke(cli, ['device', 'register', '--name', 'test_device'])
                 assert result.exit_code == 0
                 assert "デバイス 'test_device' は既に登録されています" in result.output
                 assert "existing_id" in result.output
 
 
-class TestListDevicesCommand:
-    """list-devicesコマンドのテスト"""
+class TestDeviceListCommand:
+    """device list コマンドのテスト"""
     
     @pytest.fixture
     def runner(self):
@@ -101,7 +100,7 @@ class TestListDevicesCommand:
     def test_list_devices_no_api_key(self, runner):
         """APIキーがない場合のテスト"""
         with patch.dict(os.environ, {}, clear=True):
-            result = runner.invoke(cli, ['list-devices'])
+            result = runner.invoke(cli, ['device', 'list'])
             assert result.exit_code == 0
             assert "PUSHBULLET_TOKEN環境変数が設定されていません" in result.output
     
@@ -115,7 +114,7 @@ class TestListDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['list-devices'])
+                result = runner.invoke(cli, ['device', 'list'])
                 assert result.exit_code == 0
                 assert "登録されているデバイスがありません" in result.output
     
@@ -146,7 +145,7 @@ class TestListDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['list-devices'])
+                result = runner.invoke(cli, ['device', 'list'])
                 assert result.exit_code == 0
                 assert "Device 1" in result.output
                 assert "dev1" in result.output
@@ -154,8 +153,8 @@ class TestListDevicesCommand:
                 assert "登録されているデバイス (2件)" in result.output
 
 
-class TestDeleteDevicesCommand:
-    """delete-devicesコマンドのテスト"""
+class TestDeviceDeleteCommand:
+    """device delete コマンドのテスト"""
     
     @pytest.fixture
     def runner(self):
@@ -176,7 +175,7 @@ class TestDeleteDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['delete-devices', '--name', 'Device 1', '--yes'])
+                result = runner.invoke(cli, ['device', 'delete', '--name', 'Device 1', '--yes'])
                 assert result.exit_code == 0
                 assert "デバイス 'Device 1' (ID: dev1) を削除しました" in result.output
                 mock_pb.async_remove_device.assert_called_once()
@@ -196,7 +195,7 @@ class TestDeleteDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['delete-devices', '--id', 'dev2', '--yes'])
+                result = runner.invoke(cli, ['device', 'delete', '--id', 'dev2', '--yes'])
                 assert result.exit_code == 0
                 assert "デバイス 'Device 2' (ID: dev2) を削除しました" in result.output
                 mock_pb.async_remove_device.assert_called_once()
@@ -211,14 +210,14 @@ class TestDeleteDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['delete-devices', '--name', 'NonExistent'])
+                result = runner.invoke(cli, ['device', 'delete', '--name', 'NonExistent'])
                 assert result.exit_code == 0
                 assert "エラー: 名前 'NonExistent' のデバイスが見つかりません" in result.output
 
 
 
-class TestListenCommand:
-    """listenコマンドのテスト"""
+class TestStartCommand:
+    """start コマンドのテスト"""
     
     @pytest.fixture
     def runner(self):
@@ -227,7 +226,7 @@ class TestListenCommand:
     def test_listen_no_api_key(self, runner):
         """APIキーがない場合のテスト"""
         with patch.dict(os.environ, {}, clear=True):
-            result = runner.invoke(cli, ['listen'])
+            result = runner.invoke(cli, ['start', '--once'])
             assert result.exit_code == 0
             assert "PUSHBULLET_TOKEN環境変数が設定されていません" in result.output
     
@@ -241,7 +240,7 @@ class TestListenCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['listen', '--device', 'NonExistent'])
+                result = runner.invoke(cli, ['start', '--once', '--device', 'NonExistent'])
                 assert result.exit_code == 0
                 assert "エラー: デバイス 'NonExistent' が見つかりません" in result.output
     
@@ -257,6 +256,6 @@ class TestListenCommand:
                 MockPB1.return_value = mock_pb
                 MockPB2.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['listen', '--no-auto-route'])
+                result = runner.invoke(cli, ['start', '--once', '--no-auto-route'])
                 assert result.exit_code == 0
                 assert "エラー: デバイス 'test_device' が見つかりません" in result.output

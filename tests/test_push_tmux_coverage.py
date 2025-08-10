@@ -134,18 +134,18 @@ class TestSendToTmux:
                           for call in error_calls)
 
 
-class TestSendKeyCommand:
-    """send-keyコマンドの追加テスト"""
+class TestSendCommand:
+    """send コマンドの追加テスト"""
     
     @pytest.fixture
     def runner(self):
         return CliRunner()
     
     def test_send_key_with_config_update(self, runner):
-        """設定を更新してsend-key実行"""
+        """設定を更新してsend実行"""
         with patch('push_tmux.commands.send_key.load_config', return_value={}):
-            with patch('push_tmux.commands.send_key.send_to_tmux', new_callable=AsyncMock) as mock_send:
-                runner.invoke(cli, ['send-key', 'test', 
+            with patch('push_tmux.commands.send.send_to_tmux', new_callable=AsyncMock) as mock_send:
+                runner.invoke(cli, ['send', 'test', 
                                             '--session', 'my_session',
                                             '--window', '2',
                                             '--pane', '1'])
