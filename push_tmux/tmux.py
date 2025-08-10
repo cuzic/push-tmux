@@ -71,41 +71,53 @@ async def _show_session_not_found_error(device_name):
         click.echo(f"以下のいずれかの対処を行ってください:", err=True)
         click.echo(f"  1. tmuxセッション '{device_name}' を作成する", err=True)
         click.echo(f"  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
-        click.echo(f"  3. config.tomlの[tmux].target_sessionを明示的に設定する", err=True)
+        click.echo(f"  3. config.tomlの[tmux].default_target_sessionを設定する", err=True)
     else:
         click.echo("エラー: tmuxセッションが見つかりません。", err=True)
-        click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
+        click.echo("`config.toml`で`[tmux].default_target_session`を設定してください。", err=True)
 
 
 async def _resolve_target_session(config, device_name):
-    """ターゲットセッションを決定"""
+    """ターゲットセッションを決定
+    
+    優先順位:
+    1. device_mapping での明示的なマッピング
+    2. use_device_name_as_session が true の場合、デバイス名と同じセッション
+    3. default_target_session の設定
+    4. 現在のtmuxセッション
+    """
     tmux_config = config.get('tmux', {})
-    session_setting = tmux_config.get('target_session')
+    default_session = tmux_config.get('default_target_session')
+    use_device_name = tmux_config.get('use_device_name_as_session', True)  # デフォルトはTrue
     device_mapping = config.get('device_mapping', {})
     
-    # 1. configに明示的な設定がある場合はそれを優先
-    if session_setting and session_setting != 'current':
-        return session_setting, None, None
-    
-    # 2. device_nameがある場合の処理
-    if device_name:
-        # まずdevice_mappingを確認
+    # 1. device_mappingでの明示的なマッピングを最優先
+    if device_name and device_name in device_mapping:
         result = await _try_mapped_session(device_name, device_mapping)
         if result[0]:
             return result
-        
-        # デバイス名と同じ名前のtmuxセッションが存在するか確認
+    
+    # 2. use_device_name_as_session が true で、デバイス名と同じセッションが存在する場合
+    if device_name and use_device_name:
         result = await _try_device_name_session(device_name, device_mapping)
         if result[0]:
             return result
     
-    # 3. 現在のセッションを使用
+    # 3. default_target_session が設定されている場合
+    if default_session and default_session != 'current':
+        if await _check_session_exists(default_session):
+            click.echo(f"デフォルトのtmuxセッション '{default_session}' を使用します。")
+            return default_session, None, None
+        else:
+            click.echo(f"警告: デフォルトセッション '{default_session}' が存在しません。")
+    
+    # 4. 現在のセッションを使用
     current_session = await _get_current_session()
     if current_session:
         click.echo(f"現在のtmuxセッション '{current_session}' を使用します。")
         return current_session, None, None
     
-    # 4. エラー処理
+    # 5. エラー処理
     await _show_session_not_found_error(device_name)
     return None, None, None
 
