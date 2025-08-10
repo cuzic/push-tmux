@@ -4,14 +4,13 @@
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch, AsyncMock
 import sys
 import os
 
 # プロジェクトのルートディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from push_tmux.config import load_config
 
 
 def test_device_targeting_logic():
@@ -79,7 +78,7 @@ def test_device_targeting_logic():
         print(f"  実際の結果: {'処理する' if result else '無視する'}")
         
         assert result == expected, f"判定が間違っています: {test_case['name']}"
-        print(f"  ✓ テスト成功")
+        print("  ✓ テスト成功")
 
 
 @pytest.mark.asyncio
@@ -88,7 +87,7 @@ async def test_on_push_function():
     
     # モックの設定
     with patch('push_tmux.tmux.send_to_tmux', new_callable=AsyncMock) as mock_send:
-        with patch('click.echo') as mock_echo:
+        with patch('click.echo'):
             # テスト用のデバイスID
             my_device_iden = "test_device_123"
             
@@ -121,7 +120,7 @@ async def test_on_push_function():
                 "body": "テストメッセージ1"
             }
             result1 = await on_push(push1)
-            assert result1 == True
+            assert result1
             mock_send.assert_called_with({}, "テストメッセージ1")
             
             # テストケース2: 他のデバイス宛のメッセージ
@@ -131,7 +130,7 @@ async def test_on_push_function():
                 "body": "テストメッセージ2"
             }
             result2 = await on_push(push2)
-            assert result2 == False
+            assert not result2
             
             # テストケース3: 全デバイス宛のメッセージ
             push3 = {
@@ -139,7 +138,7 @@ async def test_on_push_function():
                 "body": "全デバイス宛"
             }
             result3 = await on_push(push3)
-            assert result3 == False
+            assert not result3
             
             print("\n✓ on_push関数のテストが全て成功しました")
 
