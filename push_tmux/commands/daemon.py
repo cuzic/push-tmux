@@ -19,14 +19,25 @@ from .listen import listen_main
 @click.option('--device', '-d', help='特定のデバイス名またはIDを指定')
 @click.option('--all-devices', is_flag=True, help='全デバイスからのメッセージを受信')
 @click.option('--auto-route', is_flag=True, help='tmuxセッション名に基づいてメッセージを自動ルーティング')
+@click.option('--no-auto-route', is_flag=True, help='自動ルーティングを無効化（現在のデバイスのみ）')
 @click.option('--debug', is_flag=True, help='デバッグ情報を表示')
 @click.option('--reload-interval', type=float, default=1.0, help='ファイル変更監視間隔（秒）')
 @click.option('--watch-files', multiple=True, help='監視するファイル（複数指定可能）')
-def daemon(device, all_devices, auto_route, debug, reload_interval, watch_files):
+def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interval, watch_files):
     """
     デーモンモードでPushbulletリスナーを起動します。
     ファイル変更の監視とホットリロード機能付き。
+    
+    デフォルトでは自動ルーティングモードで動作し、すべてのデバイスのメッセージを
+    対応するtmuxセッションに送信します。
     """
+    # 引数がない場合は自動ルーティングをデフォルトに
+    if not device and not all_devices and not auto_route and not no_auto_route:
+        auto_route = True
+        
+    # no_auto_route が指定された場合は auto_route を無効化
+    if no_auto_route:
+        auto_route = False
     config = load_config()
     setup_logging(config, is_daemon=True)
     
@@ -36,8 +47,9 @@ def daemon(device, all_devices, auto_route, debug, reload_interval, watch_files)
     actual_watch_files = list(watch_files) if watch_files else default_watch_files
     actual_reload_interval = reload_interval if reload_interval != 1.0 else daemon_config.get('reload_interval', 1.0)
     
+    mode_desc = "自動ルーティング" if auto_route else (device or 'default')
     log_daemon_event('info', 'デーモンモードを開始',
-                    device=device or 'default', auto_route=auto_route, 
+                    mode=mode_desc, auto_route=auto_route, 
                     watch_files=actual_watch_files, reload_interval=actual_reload_interval)
     
     # watchdogを使ったファイル監視と再起動

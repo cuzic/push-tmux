@@ -24,14 +24,14 @@ push-tmuxは、Pushbulletで受信したメッセージを自動的にtmuxセッ
 # 1. Python環境セットアップ
 mise trust && mise install
 
-# 2. デバイス登録
-push-tmux register
+# 2. デバイス登録（複数デバイスを登録可能）
+push-tmux register  # 現在のディレクトリ名でデバイス登録
 
-# 3. tmuxセッション開始
-tmux new-session -s $(basename $(pwd))
+# 3. tmuxセッション作成（登録したデバイス名と同じ名前で）
+tmux new-session -s device-name -d  # 複数作成可能
 
-# 4. リスナー開始
-push-tmux listen
+# 4. リスナー開始（すべてのデバイスを自動処理）
+push-tmux listen  # 自動ルーティングモードがデフォルト
 ```
 
 ### 2. ディレクトリベースのワークフロー
@@ -69,15 +69,19 @@ tmux new-session -s webapp
 tmux attach -t webapp
 ```
 
-#### 5. tmux内でlistenを開始
+#### 5. リスナーを開始
 ```bash
-# tmuxセッション内で実行（従来の方法）
+# デフォルト：自動ルーティングモード（すべてのデバイスのメッセージを処理）
 push-tmux listen
-# => デバイス 'webapp' (ID: xxx) として待ち受けます。
+# => 自動ルーティングモードで起動します
 
-# または、デーモンモードで実行（推奨）
+# 特定デバイスのみ受信したい場合
+push-tmux listen --no-auto-route
+# => デバイス 'webapp' (ID: xxx) として待ち受けます
+
+# デーモンモードで実行（推奨、自動再起動機能付き）
 push-tmux daemon
-# => 自動再起動機能付きで実行されます
+# => 自動ルーティングモードでデーモンとして実行されます
 ```
 
 #### 6. メッセージを送信
@@ -165,17 +169,17 @@ push-tmux delete-devices --include-inactive
 
 ### メッセージ受信
 ```bash
-# 現在のデバイス名で受信待機
+# デフォルト：自動ルーティングモード（すべてのデバイスを処理）
 push-tmux listen
+
+# 現在のデバイスのみ受信
+push-tmux listen --no-auto-route
 
 # 特定のデバイスとして受信待機
 push-tmux listen --device other-device
 
-# 全デバイスからのメッセージを受信
+# 全デバイスからのメッセージを受信（ルーティングなし）
 push-tmux listen --all-devices
-
-# 自動ルーティングモード
-push-tmux listen --auto-route
 
 # デバッグモードで実行
 push-tmux listen --debug
@@ -183,14 +187,14 @@ push-tmux listen --debug
 
 ### デーモンモード
 ```bash
-# デーモンモードで実行（自動再起動機能付き）
+# デフォルト：自動ルーティングモードでデーモン実行
 push-tmux daemon
+
+# 現在のデバイスのみでデーモン実行
+push-tmux daemon --no-auto-route
 
 # 全デバイスからのメッセージを受信
 push-tmux daemon --all-devices
-
-# 自動ルーティング付きデーモン
-push-tmux daemon --auto-route
 
 # カスタム監視間隔
 push-tmux daemon --reload-interval 5.0

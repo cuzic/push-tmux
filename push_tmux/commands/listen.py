@@ -153,9 +153,22 @@ async def listen_main(device=None, all_devices=False, auto_route=False, debug=Fa
 @click.option('--device', '-d', help='特定のデバイス名またはIDを指定')
 @click.option('--all-devices', is_flag=True, help='全デバイスからのメッセージを受信')
 @click.option('--auto-route', is_flag=True, help='tmuxセッション名に基づいてメッセージを自動ルーティング')
+@click.option('--no-auto-route', is_flag=True, help='自動ルーティングを無効化（現在のデバイスのみ）')
 @click.option('--debug', is_flag=True, help='デバッグ情報を表示')
-def listen(device, all_devices, auto_route, debug):
+def listen(device, all_devices, auto_route, no_auto_route, debug):
     """
     Pushbulletからのメッセージを待機し、tmuxに転送します。
+    
+    デフォルトでは自動ルーティングモードで動作し、すべてのデバイスのメッセージを
+    対応するtmuxセッションに送信します。
     """
+    # 引数がない場合は自動ルーティングをデフォルトに
+    if not device and not all_devices and not auto_route and not no_auto_route:
+        auto_route = True
+        click.echo("自動ルーティングモードで起動します（すべてのデバイスのメッセージを処理）")
+    
+    # no_auto_route が指定された場合は auto_route を無効化
+    if no_auto_route:
+        auto_route = False
+    
     asyncio.run(listen_main(device, all_devices, auto_route, debug))
