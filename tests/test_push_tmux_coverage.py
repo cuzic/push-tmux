@@ -24,13 +24,15 @@ class TestConfigFunctions:
     
     def test_load_config_with_file(self):
         """設定ファイルが存在する場合"""
-        config_data = {"tmux": {"target_session": "test"}}
+        config_data = {"tmux": {"default_target_session": "test"}}
         
-        with patch('os.path.exists', return_value=True):
-            with patch('builtins.open', mock_open(read_data=toml.dumps(config_data))):
+        with patch('push_tmux.config.CONFIG_FILE', 'test_config.toml'):
+            with patch('push_tmux.config.toml.load', return_value=config_data):
                 config = load_config()
                 # tmux設定が正しく読み込まれていることを確認
-                assert config['tmux']['target_session'] == 'test'
+                assert config['tmux']['default_target_session'] == 'test'
+                # デフォルトのtarget_sessionが保持されていることを確認
+                assert config['tmux']['target_session'] == 'current'
                 # デフォルトのdaemon設定が追加されていることを確認
                 assert 'daemon' in config
                 assert config['daemon']['reload_interval'] == 1.0
@@ -89,27 +91,27 @@ class TestSendToTmux:
     @pytest.mark.asyncio
     async def test_send_to_tmux_specific_session(self):
         """特定のセッションへの送信"""
+        from test_helpers import create_tmux_mock
+        
         config = {
             'tmux': {
-                'target_session': 'my_session',
+                'default_target_session': 'my_session',
                 'target_window': '1',
                 'target_pane': '0'
             }
         }
         message = "test message"
         
-        mock_process = MagicMock()
-        mock_process.wait = AsyncMock()
-        
-        with patch('asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
-            mock_exec.return_value = mock_process
+        with patch('push_tmux.tmux.asyncio.create_subprocess_exec', new_callable=AsyncMock) as mock_exec:
+            # my_sessionが存在するようにモック
+            mock_exec.side_effect = create_tmux_mock(existing_sessions=['my_session'])
             
             await send_to_tmux(config, message)
             
             # send-keysが呼ばれた
             calls = mock_exec.call_args_list
             send_keys_calls = [call for call in calls if 'send-keys' in str(call)]
-            assert len(send_keys_calls) == 1  # メッセージとEnterキーが一つのコマンドに
+            assert len(send_keys_calls) == 2  # メッセージとEnterキーで2回
             
             # ターゲットが正しい
             for call in send_keys_calls:
@@ -174,7 +176,7 @@ class TestRegisterCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(side_effect=Exception("Network error"))
+                mock_pb.get_devices = MagicMock(side_effect=Exception("Network error"))
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -197,7 +199,7 @@ class TestListDevicesCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.commands.list_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(side_effect=Exception("API error"))
+                mock_pb.get_devices = MagicMock(side_effect=Exception("API error"))
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb

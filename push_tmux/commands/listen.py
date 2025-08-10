@@ -144,6 +144,9 @@ async def listen_main(device=None, all_devices=False, auto_route=False, debug=Fa
         click.echo(f"デバイス '{device_name}' のメッセージを待機します...")
         on_push = _create_specific_device_handler(config, target_device_iden, device_name)
     else:
+        # デバイスが見つからない場合の追加メッセージ
+        if not is_auto_route and not all_devices:
+            click.echo("最初に `push-tmux register` でデバイスを登録してください。", err=True)
         return
     
     await _start_message_listener(api_key, on_push, debug)

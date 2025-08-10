@@ -87,6 +87,29 @@ push-tmux daemon
 #### 6. Send Messages
 Send a message to any registered device from another device (e.g., smartphone) via Pushbullet, and it will automatically be typed into the corresponding tmux session.
 
+## Global Installation
+
+To make `push-tmux` available from any directory:
+
+```bash
+# Install to ~/.local/bin (make sure it's in your PATH)
+./install-wrapper.sh
+
+# Or install to system-wide location (requires sudo)
+sudo ./install-wrapper.sh /usr/local/bin
+```
+
+After installation, you can run `push-tmux` from anywhere:
+
+```bash
+cd /any/directory
+push-tmux register
+push-tmux listen
+push-tmux --help
+```
+
+**Note:** The wrapper scripts automatically handle project path resolution and dependency management using `uv`.
+
 ## How It Works
 
 1. **Device Identification**: Different device names for each directory enable per-project message routing

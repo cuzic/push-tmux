@@ -5,6 +5,7 @@ Device resolution utilities for push-tmux
 import asyncio
 import click
 from asyncpushbullet import AsyncPushbullet
+from .config import get_device_name
 
 
 async def _resolve_device_mapping(device_name, device_mapping):
@@ -65,8 +66,6 @@ async def _resolve_specific_device(api_key, device):
 
 async def _resolve_default_device(api_key):
     """デフォルトデバイスを解決"""
-    from .config import get_device_name
-    
     device_name = get_device_name()
     async with AsyncPushbullet(api_key) as pb:
         devices = pb.get_devices()  # get_devicesは同期メソッド

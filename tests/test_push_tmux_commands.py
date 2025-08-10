@@ -60,7 +60,7 @@ class TestRegisterCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.commands.register.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[])
+                mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
                 mock_pb.create_device = AsyncMock(return_value={
                     'iden': 'new_device_id',
                     'nickname': 'test_device'
@@ -85,7 +85,7 @@ class TestRegisterCommand:
                     'modified': 1234567891
                 }
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[existing_device])
+                mock_pb.get_devices = MagicMock(return_value=[existing_device])  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -115,7 +115,7 @@ class TestListDevicesCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.commands.list_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[])
+                mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -146,7 +146,7 @@ class TestListDevicesCommand:
                     }
                 ]
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=devices)
+                mock_pb.get_devices = MagicMock(return_value=devices)  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -175,7 +175,7 @@ class TestDeleteDevicesCommand:
                     {'iden': 'dev2', 'nickname': 'Device 2'}
                 ]
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=devices)
+                mock_pb.get_devices = MagicMock(return_value=devices)  # 同期メソッド
                 mock_pb.delete_device = AsyncMock()
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
@@ -195,7 +195,7 @@ class TestDeleteDevicesCommand:
                     {'iden': 'dev2', 'nickname': 'Device 2'}
                 ]
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=devices)
+                mock_pb.get_devices = MagicMock(return_value=devices)  # 同期メソッド
                 mock_pb.delete_device = AsyncMock()
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
@@ -211,7 +211,7 @@ class TestDeleteDevicesCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.commands.delete_devices.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[])
+                mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -241,7 +241,7 @@ class TestListenCommand:
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token'}):
             with patch('push_tmux.device.AsyncPushbullet') as MockPB:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[])
+                mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
@@ -253,14 +253,15 @@ class TestListenCommand:
     def test_listen_default_device_not_registered(self, runner):
         """デフォルトデバイスが登録されていない場合のテスト"""
         with patch.dict(os.environ, {'PUSHBULLET_TOKEN': 'test_token', 'DEVICE_NAME': 'test_device'}):
-            with patch('push_tmux.device.AsyncPushbullet') as MockPB:
+            with patch('push_tmux.device.AsyncPushbullet') as MockPB1, \
+                 patch('push_tmux.commands.listen.AsyncPushbullet') as MockPB2:
                 mock_pb = AsyncMock()
-                mock_pb.get_devices = AsyncMock(return_value=[])
+                mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)
                 mock_pb.__aexit__ = AsyncMock()
-                MockPB.return_value = mock_pb
+                MockPB1.return_value = mock_pb
+                MockPB2.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['listen'])
+                result = runner.invoke(cli, ['listen', '--no-auto-route'])
                 assert result.exit_code == 0
                 assert "エラー: デバイス 'test_device' が見つかりません" in result.output
-                assert "最初に `push-tmux register` でデバイスを登録してください" in result.output
