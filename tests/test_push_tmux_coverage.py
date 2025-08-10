@@ -177,7 +177,8 @@ class TestRegisterCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['register'])
+                result = runner.invoke(cli, ['device', 'register'])  # 新しいコマンド構造
+                # エラーが発生しても正常終了する（例外をキャッチしてメッセージを出力するだけ）
                 assert result.exit_code == 0
                 assert "デバイス登録中にエラーが発生しました" in result.output
                 assert "Network error" in result.output
@@ -200,7 +201,7 @@ class TestListDevicesCommand:
                 mock_pb.__aexit__ = AsyncMock()
                 MockPB.return_value = mock_pb
                 
-                result = runner.invoke(cli, ['list-devices'])
+                result = runner.invoke(cli, ['device', 'list'])  # 新しいコマンド構造
                 assert result.exit_code == 0
                 assert "デバイス一覧取得中にエラーが発生しました" in result.output
                 assert "API error" in result.output
