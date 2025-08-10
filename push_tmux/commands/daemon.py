@@ -31,6 +31,27 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
     デフォルトでは自動ルーティングモードで動作し、すべてのデバイスのメッセージを
     対応するtmuxセッションに送信します。
     """
+    daemon_args = _process_daemon_args(device, all_devices, auto_route, no_auto_route)
+    config = load_config()
+    setup_logging(config, is_daemon=True)
+    
+    watch_config = _setup_watch_config(config, reload_interval, watch_files)
+    
+    mode_desc = "自動ルーティング" if daemon_args['auto_route'] else (daemon_args['device'] or 'default')
+    log_daemon_event('info', 'デーモンモードを開始',
+                    mode=mode_desc, auto_route=daemon_args['auto_route'], 
+                    watch_files=watch_config['files'], reload_interval=watch_config['interval'])
+    
+    if not _check_watchdog_available():
+        run_simple_daemon(daemon_args['device'], daemon_args['all_devices'], 
+                         daemon_args['auto_route'], daemon_args['debug'])
+        return
+    
+    _run_watchdog_daemon(daemon_args, watch_config)
+
+
+def _process_daemon_args(device, all_devices, auto_route, no_auto_route):
+    """デーモンの引数を処理して正規化する"""
     # 引数がない場合は自動ルーティングをデフォルトに
     if not device and not all_devices and not auto_route and not no_auto_route:
         auto_route = True
@@ -38,29 +59,65 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
     # no_auto_route が指定された場合は auto_route を無効化
     if no_auto_route:
         auto_route = False
-    config = load_config()
-    setup_logging(config, is_daemon=True)
-    
-    # デフォルトの監視ファイル設定
+        
+    return {
+        'device': device,
+        'all_devices': all_devices,
+        'auto_route': auto_route,
+        'debug': False  # daemon関数では使われていない
+    }
+
+
+def _setup_watch_config(config, reload_interval, watch_files):
+    """ファイル監視の設定を準備する"""
     daemon_config = config.get('daemon', {})
     default_watch_files = daemon_config.get('watch_files', ['config.toml', '.env'])
     actual_watch_files = list(watch_files) if watch_files else default_watch_files
     actual_reload_interval = reload_interval if reload_interval != 1.0 else daemon_config.get('reload_interval', 1.0)
     
-    mode_desc = "自動ルーティング" if auto_route else (device or 'default')
-    log_daemon_event('info', 'デーモンモードを開始',
-                    mode=mode_desc, auto_route=auto_route, 
-                    watch_files=actual_watch_files, reload_interval=actual_reload_interval)
-    
-    # watchdogを使ったファイル監視と再起動
+    return {
+        'files': actual_watch_files,
+        'interval': actual_reload_interval
+    }
+
+
+def _check_watchdog_available():
+    """watchdogライブラリが利用可能かチェック"""
     try:
         from watchdog.observers import Observer
         from watchdog.events import FileSystemEventHandler
+        return True
     except ImportError:
-        # watchdogが利用できない場合は、シンプルなループで実行
         log_daemon_event('warning', 'watchdogが利用できません。ファイル監視機能なしで実行します。')
-        run_simple_daemon(device, all_devices, auto_route, debug)
-        return
+        return False
+
+
+def _run_watchdog_daemon(daemon_args, watch_config):
+    """watchdogを使用したデーモンを実行"""
+    from watchdog.observers import Observer
+    
+    handler = _create_reload_handler(daemon_args, watch_config)
+    observer = Observer()
+    
+    _setup_file_monitoring(observer, handler, watch_config['files'])
+    
+    # 初回起動
+    handler.start_worker()
+    observer.start()
+    
+    _setup_signal_handlers(handler, observer)
+    
+    try:
+        _run_daemon_loop(handler, watch_config['interval'])
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _cleanup_daemon(handler, observer)
+
+
+def _create_reload_handler(daemon_args, watch_config):
+    """リロードハンドラーを作成"""
+    from watchdog.events import FileSystemEventHandler
     
     class ReloadHandler(FileSystemEventHandler):
         """ファイル変更を検知して再起動するハンドラー"""
@@ -72,7 +129,7 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
             if event.is_directory:
                 return
             # 監視対象ファイルが変更された場合
-            for watch_file in actual_watch_files:
+            for watch_file in watch_config['files']:
                 if event.src_path.endswith(watch_file):
                     log_daemon_event('info', f'ファイル変更を検出: {event.src_path}')
                     self.restart_needed = True
@@ -84,14 +141,8 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
                 self.stop_worker()
             
             log_daemon_event('info', 'ワーカープロセスを開始')
-            # 子プロセスで listen を実行
             cmd = [sys.executable, '-m', 'push_tmux.commands.daemon_worker']
-            env = os.environ.copy()
-            env['PUSH_TMUX_DEVICE'] = device or ''
-            env['PUSH_TMUX_ALL_DEVICES'] = '1' if all_devices else '0'
-            env['PUSH_TMUX_AUTO_ROUTE'] = '1' if auto_route else '0'
-            env['PUSH_TMUX_DEBUG'] = '1' if debug else '0'
-            
+            env = _create_worker_env(daemon_args)
             self.process = subprocess.Popen(cmd, env=env)
             
         def stop_worker(self):
@@ -113,29 +164,34 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
                 log_daemon_event('info', '設定変更により再起動します')
                 self.start_worker()
     
-    # ファイル監視を設定
-    handler = ReloadHandler()
-    observer = Observer()
-    
-    # 監視するパスを設定
+    return ReloadHandler()
+
+
+def _create_worker_env(daemon_args):
+    """ワーカープロセス用の環境変数を作成"""
+    env = os.environ.copy()
+    env['PUSH_TMUX_DEVICE'] = daemon_args['device'] or ''
+    env['PUSH_TMUX_ALL_DEVICES'] = '1' if daemon_args['all_devices'] else '0'
+    env['PUSH_TMUX_AUTO_ROUTE'] = '1' if daemon_args['auto_route'] else '0'
+    env['PUSH_TMUX_DEBUG'] = '1' if daemon_args['debug'] else '0'
+    return env
+
+
+def _setup_file_monitoring(observer, handler, watch_files):
+    """ファイル監視を設定"""
     watched_paths = set()
-    for watch_file in actual_watch_files:
+    for watch_file in watch_files:
         path = Path(watch_file)
         if path.exists():
-            # ファイルの親ディレクトリを監視
             watched_paths.add(str(path.parent.absolute()))
     
     for path in watched_paths:
         observer.schedule(handler, path, recursive=False)
         log_daemon_event('info', f'監視開始: {path}')
-    
-    # 初回起動
-    handler.start_worker()
-    
-    # 監視開始
-    observer.start()
-    
-    # Ctrl+C でのシャットダウン処理
+
+
+def _setup_signal_handlers(handler, observer):
+    """シグナルハンドラーを設定"""
     def signal_handler(signum, frame):
         log_daemon_event('info', 'シャットダウン要求を受信')
         handler.stop_worker()
@@ -144,24 +200,26 @@ def daemon(device, all_devices, auto_route, no_auto_route, debug, reload_interva
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
-    try:
-        while True:
-            time.sleep(actual_reload_interval)
-            handler.check_restart()
-            
-            # プロセスが終了していないかチェック
-            if handler.process and handler.process.poll() is not None:
-                log_daemon_event('warning', 'ワーカープロセスが予期せず終了しました。再起動します。')
-                handler.start_worker()
-                
-    except KeyboardInterrupt:
-        pass
-    finally:
-        handler.stop_worker()
-        observer.stop()
-        observer.join()
-        log_daemon_event('info', 'デーモンを終了')
+
+
+def _run_daemon_loop(handler, reload_interval):
+    """デーモンのメインループを実行"""
+    while True:
+        time.sleep(reload_interval)
+        handler.check_restart()
+        
+        # プロセスが終了していないかチェック
+        if handler.process and handler.process.poll() is not None:
+            log_daemon_event('warning', 'ワーカープロセスが予期せず終了しました。再起動します。')
+            handler.start_worker()
+
+
+def _cleanup_daemon(handler, observer):
+    """デーモン終了時のクリーンアップ"""
+    handler.stop_worker()
+    observer.stop()
+    observer.join()
+    log_daemon_event('info', 'デーモンを終了')
 
 
 def run_simple_daemon(device, all_devices, auto_route, debug):
