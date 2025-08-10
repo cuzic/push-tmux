@@ -2,7 +2,6 @@
 """
 Device resolution utilities for push-tmux
 """
-import asyncio
 import click
 from asyncpushbullet import AsyncPushbullet
 from .config import get_device_name

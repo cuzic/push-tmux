@@ -6,9 +6,8 @@ import os
 import sys
 import pytest
 import asyncio
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, AsyncMock
 from click.testing import CliRunner
 
 # プロジェクトのルートディレクトリをパスに追加（一元化）

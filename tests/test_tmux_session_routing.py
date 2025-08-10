@@ -3,11 +3,9 @@
 tmuxセッションルーティングのテスト
 デバイス名と同じ名前のtmuxセッションにメッセージが送信されることを確認
 """
-import asyncio
 import pytest
-import sys
 import os
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, call
+from unittest.mock import patch, AsyncMock
 
 from push_tmux.tmux import send_to_tmux
 from test_helpers import create_tmux_mock, assert_send_keys_called

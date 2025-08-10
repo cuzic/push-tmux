@@ -5,7 +5,6 @@ Logging utilities for push-tmux
 import logging
 import logging.config
 import sys
-from datetime import datetime
 from pathlib import Path
 
 

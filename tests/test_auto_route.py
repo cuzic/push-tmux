@@ -6,15 +6,13 @@ import asyncio
 import pytest
 import sys
 import os
-from unittest.mock import Mock, patch, AsyncMock, MagicMock, call
-import json
+from unittest.mock import patch, AsyncMock
 import click.testing
 
 # プロジェクトのルートをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from push_tmux import cli
-from asyncpushbullet import AsyncPushbullet
 
 
 @pytest.mark.skip(reason="PyPI asyncpushbulletパッケージに移行したため無効化")
@@ -77,7 +75,6 @@ class TestAutoRouteMode:
     @pytest.mark.asyncio
     async def test_auto_route_message_routing(self):
         """メッセージの自動ルーティング"""
-        import push_tmux
         
         # テスト用のプッシュメッセージ
         test_push = {
@@ -144,7 +141,6 @@ class TestAutoRouteMode:
     @pytest.mark.asyncio
     async def test_auto_route_skip_missing_session(self):
         """存在しないセッションへのメッセージをスキップ"""
-        import push_tmux
         
         test_push = {
             'type': 'note',
@@ -207,7 +203,6 @@ class TestAutoRouteMode:
     @pytest.mark.asyncio
     async def test_auto_route_multiple_sessions(self):
         """複数セッションへの同時ルーティング"""
-        import push_tmux
         
         # 複数のプッシュメッセージ
         pushes = [

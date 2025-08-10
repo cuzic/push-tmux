@@ -2,11 +2,7 @@
 """
 デーモンの自動再起動機能のテスト
 """
-import pytest
-import tempfile
-import time
 import sys
-import os
 import subprocess
 
 
