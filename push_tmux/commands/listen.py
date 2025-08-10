@@ -16,36 +16,50 @@ async def _display_auto_route_devices(api_key):
     """自動ルーティング対象デバイスを表示"""
     async with AsyncPushbullet(api_key) as pb:
         try:
-            result = await asyncio.create_subprocess_exec(
-                'tmux', 'ls', '-F', '#{session_name}',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await result.communicate()
-            sessions = stdout.decode().strip().split('\n') if stdout else []
-            
+            sessions = await _get_tmux_sessions()
             if not sessions:
                 click.echo("tmuxセッションが見つかりません。")
                 return
             
             devices = pb.get_devices()  # get_devicesは同期メソッド
-            matching_devices = []
+            matching_devices = await _find_matching_devices(devices, sessions)
             
-            for session in sessions:
-                device = await _find_device_by_name_or_id(devices, session)
-                if device:
-                    matching_devices.append((session, device))
-            
-            if matching_devices:
-                click.echo("自動ルーティング対象:")
-                for session, device in matching_devices:
-                    click.echo(f"  セッション '{session}' ← デバイス '{_get_device_attr(device, 'nickname')}'")
-                click.echo()
-            else:
-                click.echo("自動ルーティング対象のデバイスが見つかりません。")
+            _display_matching_results(matching_devices)
                 
         except Exception as e:
             click.echo(f"セッション情報取得エラー: {e}")
+
+
+async def _get_tmux_sessions():
+    """現在のtmuxセッション一覧を取得"""
+    result = await asyncio.create_subprocess_exec(
+        'tmux', 'ls', '-F', '#{session_name}',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await result.communicate()
+    return stdout.decode().strip().split('\n') if stdout else []
+
+
+async def _find_matching_devices(devices, sessions):
+    """セッションに対応するデバイスを検索"""
+    matching_devices = []
+    for session in sessions:
+        device = await _find_device_by_name_or_id(devices, session)
+        if device:
+            matching_devices.append((session, device))
+    return matching_devices
+
+
+def _display_matching_results(matching_devices):
+    """マッチング結果を表示"""
+    if matching_devices:
+        click.echo("自動ルーティング対象:")
+        for session, device in matching_devices:
+            click.echo(f"  セッション '{session}' ← デバイス '{_get_device_attr(device, 'nickname')}'")
+        click.echo()
+    else:
+        click.echo("自動ルーティング対象のデバイスが見つかりません。")
 
 
 def _create_auto_route_handler(api_key, config):
@@ -133,23 +147,42 @@ async def listen_main(device=None, all_devices=False, auto_route=False, debug=Fa
     config = load_config()
     target_device_iden, is_auto_route = await _resolve_target_device(api_key, device, all_devices, auto_route)
     
-    if is_auto_route:
-        click.echo("自動ルーティングモードで開始します。")
-        await _display_auto_route_devices(api_key)
-        on_push = _create_auto_route_handler(api_key, config)
-    elif target_device_iden:
-        # 特定デバイスモード
-        target_device = await _resolve_specific_device(api_key, device) if device else await _resolve_default_device(api_key)
-        device_name = _get_device_attr(target_device, 'nickname') if target_device else get_device_name()
-        click.echo(f"デバイス '{device_name}' のメッセージを待機します...")
-        on_push = _create_specific_device_handler(config, target_device_iden, device_name)
-    else:
-        # デバイスが見つからない場合の追加メッセージ
-        if not is_auto_route and not all_devices:
-            click.echo("最初に `push-tmux register` でデバイスを登録してください。", err=True)
+    on_push = await _create_push_handler(api_key, config, device, is_auto_route, target_device_iden)
+    if not on_push:
         return
     
     await _start_message_listener(api_key, on_push, debug)
+
+
+async def _create_push_handler(api_key, config, device, is_auto_route, target_device_iden):
+    """適切なプッシュハンドラーを作成"""
+    if is_auto_route:
+        return await _setup_auto_route_handler(api_key, config)
+    elif target_device_iden:
+        return await _setup_specific_device_handler(api_key, config, device, target_device_iden)
+    else:
+        _show_device_registration_message()
+        return None
+
+
+async def _setup_auto_route_handler(api_key, config):
+    """自動ルーティングハンドラーを設定"""
+    click.echo("自動ルーティングモードで開始します。")
+    await _display_auto_route_devices(api_key)
+    return _create_auto_route_handler(api_key, config)
+
+
+async def _setup_specific_device_handler(api_key, config, device, target_device_iden):
+    """特定デバイスハンドラーを設定"""
+    target_device = await _resolve_specific_device(api_key, device) if device else await _resolve_default_device(api_key)
+    device_name = _get_device_attr(target_device, 'nickname') if target_device else get_device_name()
+    click.echo(f"デバイス '{device_name}' のメッセージを待機します...")
+    return _create_specific_device_handler(config, target_device_iden, device_name)
+
+
+def _show_device_registration_message():
+    """デバイス登録が必要なメッセージを表示"""
+    click.echo("最初に `push-tmux register` でデバイスを登録してください。", err=True)
 
 
 @click.command()

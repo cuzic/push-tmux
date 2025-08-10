@@ -36,30 +36,47 @@ async def _delete_single_device(api_key, name, device_id, yes):
             target_device = _find_target_device(devices, name, device_id)
             
             if not target_device:
-                if device_id:
-                    click.echo(f"エラー: ID '{device_id}' のデバイスが見つかりません。", err=True)
-                else:
-                    click.echo(f"エラー: 名前 '{name}' のデバイスが見つかりません。", err=True)
+                _show_device_not_found_error(device_id, name)
                 return
             
-            # 削除確認
-            if not yes:
-                click.echo("\nデバイス情報:")
-                click.echo(f"  名前: {_get_device_attr(target_device, 'nickname') or 'N/A'}")
-                click.echo(f"  ID: {_get_device_attr(target_device, 'iden')}")
-                click.echo(f"  作成日時: {_get_device_attr(target_device, 'created') or 'N/A'}")
-                
-                if not click.confirm("\nこのデバイスを削除しますか？"):
-                    click.echo("削除をキャンセルしました。")
-                    return
+            if not _should_delete_device(target_device, yes):
+                return
             
-            # デバイス削除実行
-            device_iden = _get_device_attr(target_device, 'iden')
-            await pb.async_remove_device(target_device)
-            click.echo(f"デバイス '{_get_device_attr(target_device, 'nickname') or 'N/A'}' (ID: {device_iden}) を削除しました。")
+            await _execute_device_deletion(pb, target_device)
             
         except Exception as e:
             click.echo(f"デバイス削除中にエラーが発生しました: {e}", err=True)
+
+
+def _show_device_not_found_error(device_id, name):
+    """デバイスが見つからないエラーを表示"""
+    if device_id:
+        click.echo(f"エラー: ID '{device_id}' のデバイスが見つかりません。", err=True)
+    else:
+        click.echo(f"エラー: 名前 '{name}' のデバイスが見つかりません。", err=True)
+
+
+def _should_delete_device(target_device, yes):
+    """デバイスを削除するかどうか確認"""
+    if yes:
+        return True
+    
+    click.echo("\nデバイス情報:")
+    click.echo(f"  名前: {_get_device_attr(target_device, 'nickname') or 'N/A'}")
+    click.echo(f"  ID: {_get_device_attr(target_device, 'iden')}")
+    click.echo(f"  作成日時: {_get_device_attr(target_device, 'created') or 'N/A'}")
+    
+    if not click.confirm("\nこのデバイスを削除しますか？"):
+        click.echo("削除をキャンセルしました。")
+        return False
+    return True
+
+
+async def _execute_device_deletion(pb, target_device):
+    """デバイス削除を実行"""
+    device_iden = _get_device_attr(target_device, 'iden')
+    await pb.async_remove_device(target_device)
+    click.echo(f"デバイス '{_get_device_attr(target_device, 'nickname') or 'N/A'}' (ID: {device_iden}) を削除しました。")
 
 
 async def _select_devices_for_deletion(devices):
@@ -107,16 +124,10 @@ async def _delete_devices_interactive(api_key, include_inactive):
         try:
             all_devices = pb.get_devices()  # get_devicesは同期メソッド
             
-            if include_inactive:
-                devices = all_devices
-            else:
-                devices = [d for d in all_devices if _get_device_attr(d, 'active') is not False]
+            devices = _filter_devices_by_status(all_devices, include_inactive)
             
             if not devices:
-                if include_inactive:
-                    click.echo("削除可能なデバイスがありません。")
-                else:
-                    click.echo("アクティブなデバイスがありません。--include-inactiveオプションで非アクティブデバイスも含められます。")
+                _show_no_devices_message(include_inactive)
                 return
             
             selected_devices = await _select_devices_for_deletion(devices)
@@ -124,13 +135,34 @@ async def _delete_devices_interactive(api_key, include_inactive):
                 click.echo("削除対象が選択されませんでした。")
                 return
             
-            if await _confirm_deletion(selected_devices):
-                await _delete_multiple_devices(pb, selected_devices)
-            else:
-                click.echo("削除をキャンセルしました。")
+            await _handle_batch_deletion(pb, selected_devices)
                 
         except Exception as e:
             click.echo(f"デバイス削除中にエラーが発生しました: {e}", err=True)
+
+
+def _filter_devices_by_status(all_devices, include_inactive):
+    """アクティブステータスによってデバイスをフィルター"""
+    if include_inactive:
+        return all_devices
+    else:
+        return [d for d in all_devices if _get_device_attr(d, 'active') is not False]
+
+
+def _show_no_devices_message(include_inactive):
+    """デバイスがない場合のメッセージを表示"""
+    if include_inactive:
+        click.echo("削除可能なデバイスがありません。")
+    else:
+        click.echo("アクティブなデバイスがありません。--include-inactiveオプションで非アクティブデバイスも含められます。")
+
+
+async def _handle_batch_deletion(pb, selected_devices):
+    """バッチ削除を処理"""
+    if await _confirm_deletion(selected_devices):
+        await _delete_multiple_devices(pb, selected_devices)
+    else:
+        click.echo("削除をキャンセルしました。")
 
 
 @click.command('delete-devices')
