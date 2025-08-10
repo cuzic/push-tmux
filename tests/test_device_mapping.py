@@ -13,6 +13,48 @@ import sys
 from push_tmux.tmux import send_to_tmux
 
 
+def create_tmux_mock(existing_sessions=None, current_session='test-session'):
+    """tmuxコマンドモックを作成するヘルパー関数"""
+    if existing_sessions is None:
+        existing_sessions = []
+    
+    async def mock_exec(*args, **kwargs):
+        if 'has-session' in args:
+            result = MagicMock()
+            # 指定されたセッションが存在するかチェック
+            for session in existing_sessions:
+                if session in args:
+                    result.wait = AsyncMock(return_value=0)
+                    result.returncode = 0
+                    result.communicate = AsyncMock(return_value=(b'', b''))
+                    return result
+            # セッションが存在しない場合
+            result.wait = AsyncMock(return_value=1)
+            result.returncode = 1
+            result.communicate = AsyncMock(return_value=(b'', b''))
+            return result
+        elif 'display-message' in args:
+            result = MagicMock()
+            result.returncode = 0
+            result.communicate = AsyncMock(return_value=(f'{current_session}\n'.encode(), b''))
+            return result
+        elif 'list-windows' in args:
+            result = MagicMock()
+            result.communicate = AsyncMock(return_value=(b'0\n', b''))
+            return result
+        elif 'list-panes' in args:
+            result = MagicMock()
+            result.communicate = AsyncMock(return_value=(b'0\n', b''))
+            return result
+        else:
+            # send-keysなど、他のコマンドの場合
+            process = MagicMock()
+            process.wait = AsyncMock(return_value=None)
+            return process
+    
+    return mock_exec
+
+
 class TestDeviceMapping:
     """デバイスマッピング機能のテスト"""
     
@@ -25,39 +67,22 @@ class TestDeviceMapping:
             }
         }
         
-        # has-sessionが成功を返す
-        async def mock_exec(*args, **kwargs):
-            if 'has-session' in args:
-                result = MagicMock()
-                result.returncode = 0
-                async def communicate():
-                    return (b'', b'')
-                result.communicate = communicate
-                return result
-            else:
-                process = MagicMock()
-                async def async_wait():
-                    return None
-                process.wait = async_wait
-                return process
-        
-        mock_subprocess.side_effect = mock_exec
+        # frontendセッションは存在する
+        mock_subprocess.side_effect = create_tmux_mock(existing_sessions=['frontend'])
         
         # click.echoをモック
-        with patch('push_tmux.tmux.click.echo'):
+        with patch('push_tmux.tmux.click.echo') as mock_echo:
             await send_to_tmux(config, "test message", device_name="mobile-dev")
-        
-        # デバッグ: すべての呼び出しを確認
-        print(f"All calls: {mock_subprocess.call_args_list}")
+            
         
         # send-keysコマンドが実行される
         send_calls = [call for call in mock_subprocess.call_args_list if 'send-keys' in str(call)]
-        print(f"Send calls: {send_calls}")
         assert len(send_calls) == 2  # メッセージとEnterキー
         
         # ターゲットの確認
-        target = send_calls[0][0][0][3] if len(send_calls[0][0][0]) > 3 else None
-        assert target and "frontend" in target  # マップされたセッション名が使用される
+        # frontend:0.0 が期待値
+        target = send_calls[0][0][3]  # 4番目の引数がターゲット
+        assert "frontend:0.0" == target  # マップされたセッション名が使用される
     
     @pytest.mark.asyncio
     async def test_device_mapping_with_detailed_format(self, mock_subprocess):
@@ -72,20 +97,30 @@ class TestDeviceMapping:
             }
         }
         
-        # has-sessionが成功を返す
+        # tmuxコマンドのモック
         async def mock_exec(*args, **kwargs):
             if 'has-session' in args:
                 result = MagicMock()
                 result.returncode = 0
-                async def communicate():
-                    return (b'', b'')
-                result.communicate = communicate
+                result.communicate = AsyncMock(return_value=(b'', b''))
+                return result
+            elif 'display-message' in args:
+                result = MagicMock()
+                result.returncode = 0
+                result.communicate = AsyncMock(return_value=(b'test-session\n', b''))
+                return result
+            elif 'list-windows' in args:
+                result = MagicMock()
+                result.communicate = AsyncMock(return_value=(b'0\n', b''))
+                return result
+            elif 'list-panes' in args:
+                result = MagicMock()
+                result.communicate = AsyncMock(return_value=(b'0\n', b''))
                 return result
             else:
+                # send-keysなど、他のコマンドの場合
                 process = MagicMock()
-                async def async_wait():
-                    return None
-                process.wait = async_wait
+                process.wait = AsyncMock(return_value=None)
                 return process
         
         mock_subprocess.side_effect = mock_exec
