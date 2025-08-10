@@ -18,7 +18,7 @@ async def _check_session_exists(session_name):
         )
         returncode = await result.wait()
         return returncode == 0
-    except:
+    except Exception:
         return False
 
 
@@ -35,7 +35,7 @@ async def _get_current_session():
             stdout, _ = await result.communicate()
             if result.returncode == 0:
                 return stdout.decode().strip()
-        except:
+        except Exception:
             pass
     return None
 
@@ -68,10 +68,10 @@ async def _show_session_not_found_error(device_name):
     """セッションが見つからない場合のエラーメッセージ表示"""
     if device_name:
         click.echo(f"エラー: tmuxセッション '{device_name}' が見つかりません。", err=True)
-        click.echo(f"以下のいずれかの対処を行ってください:", err=True)
+        click.echo("以下のいずれかの対処を行ってください:", err=True)
         click.echo(f"  1. tmuxセッション '{device_name}' を作成する", err=True)
-        click.echo(f"  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
-        click.echo(f"  3. config.tomlの[tmux].default_target_sessionを設定する", err=True)
+        click.echo("  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
+        click.echo("  3. config.tomlの[tmux].default_target_sessionを設定する", err=True)
     else:
         click.echo("エラー: tmuxセッションが見つかりません。", err=True)
         click.echo("`config.toml`で`[tmux].default_target_session`を設定してください。", err=True)
@@ -133,7 +133,7 @@ async def _resolve_first_window(target_session):
         stdout, _ = await result.communicate()
         windows = stdout.decode().strip().split('\n')
         return windows[0] if windows else '0'
-    except:
+    except Exception:
         return '0'
 
 
@@ -148,7 +148,7 @@ async def _resolve_first_pane(target_session, target_window):
         stdout, _ = await result.communicate()
         panes = stdout.decode().strip().split('\n')
         return panes[0] if panes else '0'
-    except:
+    except Exception:
         return '0'
 
 
