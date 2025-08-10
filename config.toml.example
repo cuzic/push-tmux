@@ -1,0 +1,33 @@
+# push-tmux 設定ファイルのサンプル
+# このファイルを config.toml にコピーして使用してください
+
+[tmux]
+# target_session = "main"   # 明示的にセッション名を指定（省略時はデバイス名と同じセッション）
+# target_window = "1"       # ウィンドウインデックス（省略時は最初のウィンドウ）
+# target_pane = "0"         # ペインインデックス（省略時は最初のペイン）
+
+[device_mapping]
+# デバイス名とtmuxセッションのマッピング
+
+# シンプルな指定（セッションのみ）
+# "mobile-dev" = "frontend"      # mobile-devデバイス → frontendセッション
+
+# 詳細な指定（セッション、ウィンドウ、ペイン）
+# [device_mapping."backend-api"]
+# session = "backend"
+# window = "1"        # 2番目のウィンドウ（インデックス1）
+# pane = "2"         # 3番目のペイン（インデックス2）
+
+# [device_mapping."db-admin"]
+# session = "database"
+# window = "first"    # 最初のウィンドウ（デフォルト）
+# pane = "first"     # 最初のペイン（デフォルト）
+
+[daemon]
+reload_interval = 1.0       # ファイル監視間隔（秒）
+watch_files = ["config.toml", ".env"]  # 監視ファイル
+ignore_patterns = ["*.log", "*.tmp"]   # 無視パターン
+
+[daemon.logging]
+log_level = "INFO"          # ログレベル (DEBUG, INFO, WARNING, ERROR)
+log_file = ""              # ログファイルパス（空文字で標準出力）
