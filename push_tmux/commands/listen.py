@@ -8,7 +8,7 @@ import os
 import aiohttp
 from asyncpushbullet import AsyncPushbullet, LiveStreamListener
 from ..config import load_config, get_device_name
-from ..device import _resolve_target_device, _find_device_by_name_or_id, _resolve_specific_device, _resolve_default_device
+from ..device import _resolve_target_device, _find_device_by_name_or_id, _resolve_specific_device, _resolve_default_device, _get_device_attr
 from ..tmux import send_to_tmux
 
 
@@ -28,7 +28,7 @@ async def _display_auto_route_devices(api_key):
                 click.echo("tmuxセッションが見つかりません。")
                 return
             
-            devices = await pb.get_devices()
+            devices = pb.get_devices()  # get_devicesは同期メソッド
             matching_devices = []
             
             for session in sessions:
@@ -39,7 +39,7 @@ async def _display_auto_route_devices(api_key):
             if matching_devices:
                 click.echo("自動ルーティング対象:")
                 for session, device in matching_devices:
-                    click.echo(f"  セッション '{session}' ← デバイス '{device.get('nickname')}'")
+                    click.echo(f"  セッション '{session}' ← デバイス '{_get_device_attr(device, 'nickname')}'")
                 click.echo()
             else:
                 click.echo("自動ルーティング対象のデバイスが見つかりません。")
@@ -62,13 +62,13 @@ def _create_auto_route_handler(api_key, config):
         
         # 対象デバイスの情報を取得
         async with AsyncPushbullet(api_key) as pb:
-            devices = await pb.get_devices()
-            target_device = next((d for d in devices if d['iden'] == target_device_iden), None)
+            devices = pb.get_devices()  # get_devicesは同期メソッド
+            target_device = next((d for d in devices if _get_device_attr(d, 'iden') == target_device_iden), None)
             
             if not target_device:
                 return
             
-            device_name = target_device.get('nickname')
+            device_name = _get_device_attr(target_device, 'nickname')
             if not device_name:
                 return
             
@@ -109,10 +109,14 @@ def _create_specific_device_handler(config, target_device_iden, device_name):
 async def _start_message_listener(api_key, on_push, debug):
     """メッセージリスナーを開始"""
     try:
-        listener = LiveStreamListener(api_key, on_push)
-        if debug:
-            click.echo("WebSocketリスナーを開始します...")
-        await listener.run_forever()
+        async with AsyncPushbullet(api_key) as pb:
+            async with LiveStreamListener(pb) as listener:
+                if debug:
+                    click.echo("WebSocketリスナーを開始します...")
+                while not listener.closed:
+                    push = await listener.next_push()
+                    if push:
+                        await on_push(push)
     except aiohttp.ClientError as e:
         click.echo(f"WebSocket接続エラー: {e}", err=True)
     except Exception as e:
@@ -136,7 +140,7 @@ async def listen_main(device=None, all_devices=False, auto_route=False, debug=Fa
     elif target_device_iden:
         # 特定デバイスモード
         target_device = await _resolve_specific_device(api_key, device) if device else await _resolve_default_device(api_key)
-        device_name = target_device.get('nickname') if target_device else get_device_name()
+        device_name = _get_device_attr(target_device, 'nickname') if target_device else get_device_name()
         click.echo(f"デバイス '{device_name}' のメッセージを待機します...")
         on_push = _create_specific_device_handler(config, target_device_iden, device_name)
     else:
