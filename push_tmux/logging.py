@@ -69,31 +69,57 @@ def log_daemon_event(event_type, message, **kwargs):
     import click
     logger = logging.getLogger('push_tmux.daemon')
     
-    # 追加情報があれば含める
-    extra_info = ' '.join([f'{k}={v}' for k, v in kwargs.items()]) if kwargs else ''
+    extra_info = _format_extra_info(kwargs)
+    event_config = _get_event_config(event_type.lower(), message, extra_info)
     
-    # イベントタイプに基づいたメッセージの作成
-    if event_type.lower() == 'start':
-        full_message = f'プロセス開始: {message}'
-        logger.info(full_message)
-        click.echo(full_message)
-    elif event_type.lower() == 'error':
-        full_message = f'エラー: {message}'
-        logger.error(full_message)
-        click.echo(full_message, err=True)
-    elif event_type.lower() == 'warning':
-        full_message = f'警告: {message}'
-        logger.warning(full_message)
-        click.echo(full_message)
-    elif event_type.lower() == 'info':
-        full_message = f'{message}' + (f' ({extra_info})' if extra_info else '')
-        logger.info(full_message)
-        click.echo(full_message)
-    elif event_type.lower() == 'file_change':
-        full_message = f'ファイル変更検知: {message}'
-        logger.info(full_message)
-        click.echo(full_message)
+    _log_and_echo(logger, click, event_config)
+
+
+def _format_extra_info(kwargs):
+    """追加情報をフォーマット"""
+    return ' '.join([f'{k}={v}' for k, v in kwargs.items()]) if kwargs else ''
+
+
+def _get_event_config(event_type, message, extra_info):
+    """イベントタイプに基づいた設定を取得"""
+    event_configs = {
+        'start': {'prefix': 'プロセス開始', 'level': 'info', 'use_stderr': False},
+        'error': {'prefix': 'エラー', 'level': 'error', 'use_stderr': True},
+        'warning': {'prefix': '警告', 'level': 'warning', 'use_stderr': False},
+        'info': {'prefix': '', 'level': 'info', 'use_stderr': False, 'include_extra': True},
+        'file_change': {'prefix': 'ファイル変更検知', 'level': 'info', 'use_stderr': False}
+    }
+    
+    config = event_configs.get(event_type, {'prefix': '', 'level': 'info', 'use_stderr': False, 'include_extra': True})
+    config['message'] = _format_message(message, config, extra_info)
+    
+    return config
+
+
+def _format_message(message, config, extra_info):
+    """メッセージをフォーマット"""
+    if config.get('prefix'):
+        full_message = f"{config['prefix']}: {message}"
     else:
-        full_message = f'{message}' + (f' ({extra_info})' if extra_info else '')
-        logger.info(full_message)
-        click.echo(full_message)
+        full_message = message
+    
+    if config.get('include_extra') and extra_info:
+        full_message += f' ({extra_info})'
+    
+    return full_message
+
+
+def _log_and_echo(logger, click, event_config):
+    """ログ出力とコンソール表示を実行"""
+    message = event_config['message']
+    level = event_config['level']
+    use_stderr = event_config['use_stderr']
+    
+    # ログレベルに応じて出力
+    getattr(logger, level)(message)
+    
+    # コンソール出力
+    if use_stderr:
+        click.echo(message, err=True)
+    else:
+        click.echo(message)
