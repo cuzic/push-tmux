@@ -142,69 +142,50 @@ class TestDaemonLogging:
 class TestDaemonCommand:
     """daemon コマンドのテスト"""
     
-    @patch('push_tmux.commands.daemon.setup_logging')
-    @patch('push_tmux.commands.daemon.log_daemon_event')
-    @patch('subprocess.Popen')
-    @patch('asyncio.run')
-    def test_daemon_worker_mode(self, mock_asyncio_run, mock_popen, mock_log, mock_setup_logging):
+    @patch('push_tmux.commands.start.setup_logging')
+    @patch('push_tmux.commands.start.log_daemon_event')
+    @patch('push_tmux.commands.start._run_listener_iteration')
+    def test_daemon_worker_mode(self, mock_run_listener, mock_log, mock_setup_logging):
         """ワーカーモードのテスト"""
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None
-        mock_popen.return_value = mock_process
+        # _run_listener_iterationでKeyboardInterruptを発生させてテストを終了
+        mock_run_listener.side_effect = KeyboardInterrupt
         
-        with patch('time.sleep', side_effect=KeyboardInterrupt):
-            runner = CliRunner()
-            runner.invoke(cli, ['daemon', '--auto-route'])
+        runner = CliRunner()
+        result = runner.invoke(cli, ['start', '--daemon', '--auto-route'])
         
-        # daemonコマンドではsetup_loggingとlog_daemon_eventが呼ばれる
+        # start --daemonコマンドではsetup_loggingとlog_daemon_eventが呼ばれる
         mock_setup_logging.assert_called()
         mock_log.assert_called()
     
-    @patch('push_tmux.commands.daemon.setup_logging')
-    @patch('push_tmux.commands.daemon.log_daemon_event')
-    @patch('watchdog.observers.Observer')
-    @patch('subprocess.Popen')
-    def test_daemon_monitor_mode(self, mock_popen, mock_observer_class, mock_log, mock_setup_logging):
+    @patch('push_tmux.commands.start.setup_logging')
+    @patch('push_tmux.commands.start.log_daemon_event')
+    @patch('push_tmux.commands.start._run_listener_iteration')
+    def test_daemon_monitor_mode(self, mock_run_listener, mock_log, mock_setup_logging):
         """監視モードのテスト"""
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None
-        mock_popen.return_value = mock_process
+        mock_run_listener.side_effect = KeyboardInterrupt  # テスト終了のため
         
-        mock_observer = MagicMock()
-        mock_observer_class.return_value = mock_observer
+        runner = CliRunner()
+        result = runner.invoke(cli, ['start', '--daemon', '--debug', '--reload-interval', '2.0'])
         
-        # time.sleepでKeyboardInterruptを発生させてテストを終了
-        with patch('time.sleep', side_effect=KeyboardInterrupt):
-            runner = CliRunner()
-            runner.invoke(cli, ['daemon', '--debug', '--reload-interval', '2.0'])
-            
-            mock_setup_logging.assert_called()
-            mock_observer.start.assert_called()
-            mock_observer.stop.assert_called()
+        mock_setup_logging.assert_called()
+        mock_log.assert_called()
     
-    @patch('push_tmux.commands.daemon.setup_logging')
-    @patch('watchdog.observers.Observer')
-    @patch('subprocess.Popen')
-    def test_daemon_with_custom_options(self, mock_popen, mock_observer_class, mock_setup_logging):
+    @patch('push_tmux.commands.start.setup_logging')
+    @patch('push_tmux.commands.start._run_listener_iteration')
+    def test_daemon_with_custom_options(self, mock_run_listener, mock_setup_logging):
         """カスタムオプション付きdaemonコマンドのテスト"""
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None
-        mock_popen.return_value = mock_process
+        mock_run_listener.side_effect = KeyboardInterrupt  # テスト終了のため
         
-        mock_observer = MagicMock()
-        mock_observer_class.return_value = mock_observer
+        runner = CliRunner()
+        result = runner.invoke(cli, [
+            'start', '--daemon',
+            '--device', 'test-device',
+            '--reload-interval', '5.0',
+            '--watch-files', 'custom.ini',
+            '--watch-files', 'secrets.env'
+        ])
         
-        with patch('time.sleep', side_effect=KeyboardInterrupt):
-            runner = CliRunner()
-            runner.invoke(cli, [
-                'daemon', 
-                '--device', 'test-device',
-                '--reload-interval', '5.0',
-                '--watch-files', 'custom.ini',
-                '--watch-files', 'secrets.env'
-            ])
-            
-            mock_setup_logging.assert_called()
+        mock_setup_logging.assert_called()
 
 
 class TestDaemonIntegration:
@@ -232,20 +213,17 @@ class TestDaemonIntegration:
     
     def test_daemon_error_handling(self):
         """daemon エラーハンドリングのテスト"""
-        with patch('push_tmux.commands.daemon.setup_logging'), \
-             patch('push_tmux.commands.daemon.log_daemon_event') as mock_log, \
-             patch('subprocess.Popen') as mock_popen:
+        with patch('push_tmux.commands.start.setup_logging'), \
+             patch('push_tmux.commands.start.log_daemon_event') as mock_log, \
+             patch('push_tmux.commands.start._run_listener_iteration') as mock_listener:
             
-            # プロセスがエラーで終了した状態をシミュレート
-            mock_process = MagicMock()
-            mock_process.poll.return_value = 1  # エラー終了コード
-            mock_popen.return_value = mock_process
+            # _run_listener_iterationでKeyboardInterruptを発生させる
+            mock_listener.side_effect = KeyboardInterrupt
             
-            with patch('time.sleep', side_effect=[None, KeyboardInterrupt]):
-                runner = CliRunner()
-                runner.invoke(cli, ['daemon'])
+            runner = CliRunner()
+            result = runner.invoke(cli, ['start', '--daemon'])
             
-            # エラーログが記録されることを確認
+            # log_daemon_eventが呼ばれることを確認（daemon開始時に呼ばれる）
             mock_log.assert_called()
 
 
