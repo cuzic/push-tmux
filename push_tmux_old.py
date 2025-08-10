@@ -285,10 +285,10 @@ async def _show_session_not_found_error(device_name):
     """セッションが見つからない場合のエラーメッセージ表示"""
     if device_name:
         click.echo(f"エラー: tmuxセッション '{device_name}' が見つかりません。", err=True)
-        click.echo(f"以下のいずれかの対処を行ってください:", err=True)
+        click.echo("以下のいずれかの対処を行ってください:", err=True)
         click.echo(f"  1. tmuxセッション '{device_name}' を作成する", err=True)
-        click.echo(f"  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
-        click.echo(f"  3. config.tomlの[tmux].target_sessionを明示的に設定する", err=True)
+        click.echo("  2. config.tomlの[device_mapping]セクションでマッピングを設定する", err=True)
+        click.echo("  3. config.tomlの[tmux].target_sessionを明示的に設定する", err=True)
     else:
         click.echo("エラー: tmuxセッションが見つかりません。", err=True)
         click.echo("`config.toml`で`[tmux].target_session`を明示的に設定してください。", err=True)
@@ -516,7 +516,7 @@ async def _delete_single_device(api_key, name, device_id, yes):
             
             # 削除確認
             if not yes:
-                click.echo(f"\nデバイス情報:")
+                click.echo("\nデバイス情報:")
                 click.echo(f"  名前: {target_device.get('nickname', 'N/A')}")
                 click.echo(f"  ID: {target_device['iden']}")
                 click.echo(f"  作成日時: {target_device.get('created', 'N/A')}")
@@ -906,7 +906,7 @@ def _create_specific_device_handler(config, target_device_iden, device_name):
         sender_email = push.get('sender_email', '')
         
         click.echo("-" * 40)
-        click.echo(f"新しいメッセージを受信しました:")
+        click.echo("新しいメッセージを受信しました:")
         if sender_email:
             click.echo(f"  送信者: {sender_name} ({sender_email})")
         else:
@@ -929,7 +929,7 @@ async def _start_message_listener(api_key, on_push, debug):
         
         if debug:
             click.echo("デバッグモードで実行中...")
-        click.echo(f"Pushbulletのストリームを開始します。")
+        click.echo("Pushbulletのストリームを開始します。")
         click.echo("Ctrl+Cで終了します。")
         
         try:
@@ -998,8 +998,6 @@ def daemon(device, all_devices, auto_route, debug, reload_interval, watch_files)
     設定ファイルやコードの変更時にも自動再起動されます。
     """
     import hupper
-    import sys
-    import os
     
     # 設定読み込み
     config = load_config()
