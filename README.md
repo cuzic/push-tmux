@@ -171,11 +171,6 @@ This project uses GitHub Actions for continuous integration and deployment:
   - Targeted test execution
   - PR analysis with change statistics
 
-- **Release** (`release.yml`) - Automated package publishing
-  - Full test suite before release
-  - PyPI publishing with trusted publishing
-  - Release artifact creation
-
 - **Dependencies** (`dependencies.yml`) - Automated maintenance
   - Weekly dependency updates via PRs
   - Security vulnerability scanning
