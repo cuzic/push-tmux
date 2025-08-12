@@ -136,19 +136,36 @@ def expand_slash_command(message: str, config: Dict[str, Any], device_name: str)
     Returns:
         (is_slash_command, expanded_command, target_session)
     """
+    # Check if fallback is enabled (default: True for better compatibility)
+    settings = config.get('slash_commands_settings', {})
+    fallback_undefined = settings.get('fallback_undefined', True)
+    
     parser = SlashCommandParser(config)
     
     command, arguments = parser.parse_message(message)
     if not command:
         return False, None, None
     
+    # Check if command is defined
+    if command not in parser.commands:
+        # Handle undefined commands based on fallback setting
+        if fallback_undefined:
+            # Treat as normal message
+            return False, None, None
+        else:
+            # Legacy behavior: treat as slash command but show error
+            click.echo(f"Unknown command: /{command}")
+            return True, None, None
+    
+    # For defined commands, check execution permissions
     if not parser.should_execute(command, device_name):
         click.echo(f"Command '/{command}' not allowed for device '{device_name}'")
         return True, None, None  # It's a slash command but shouldn't execute
     
+    # Execute the command
     expanded = parser.execute_command(command, arguments)
     if not expanded:
-        click.echo(f"Unknown command: /{command}")
+        click.echo(f"Command '/{command}' missing required arguments")
         return True, None, None
     
     target_session = parser.get_target_session(command, arguments)

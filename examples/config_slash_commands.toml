@@ -2,6 +2,13 @@
 use_device_name_as_session = true
 enter_delay = 1.0
 
+# Slash commands settings
+[slash_commands_settings]
+# Enable fallback for undefined slash commands (default: true)
+# When true, undefined commands like /login will be sent as normal messages
+# When false, undefined commands will show an error message (legacy behavior)
+fallback_undefined = true
+
 # Slash commands configuration
 [slash_commands.deploy]
 # Template with placeholders for arguments

@@ -113,8 +113,9 @@ def _create_auto_route_handler(api_key, config):
                             final_target = target_session or device_name
                             await send_to_tmux(config, expanded_cmd, final_target)
                             click.echo(f"Executed slash command: {message.split()[0]} for device '{device_name}'")
+                        # else: command was rejected or had missing args, already handled by expand_slash_command
                     else:
-                        # Regular message
+                        # Regular message (or fallback from undefined slash command)
                         await send_to_tmux(config, message, device_name)
             else:
                 click.echo(f"対応するtmuxセッション '{device_name}' が見つかりません。")
@@ -167,8 +168,9 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
                     final_target = target_session or device_name
                     await send_to_tmux(config, expanded_cmd, final_target)
                     click.echo(f"Executed slash command: {message.split()[0]}")
+                # else: command was rejected or had missing args, already handled by expand_slash_command
             else:
-                # Regular message
+                # Regular message (or fallback from undefined slash command)
                 await send_to_tmux(config, message, device_name)
     
     return on_push

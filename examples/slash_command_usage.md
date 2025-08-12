@@ -1,10 +1,40 @@
 # Slash Command Usage Examples
 
+## New: Fallback Behavior for Undefined Commands
+
+Starting from the latest version, push-tmux can handle undefined slash commands gracefully. This ensures compatibility with other tools like claude-code that use slash commands.
+
+### Configuration
+
+```toml
+[slash_commands_settings]
+# Enable fallback for undefined slash commands (default: true)
+# When true, undefined commands like /login will be sent as normal messages
+# When false, undefined commands will show an error message (legacy behavior)
+fallback_undefined = true
+```
+
+### Behavior Examples
+
+With `fallback_undefined = true` (default):
+- `/deploy` (defined) → Executes custom command
+- `/login` (undefined) → Sent as "/login" to tmux
+- `hello` (no slash) → Sent as "hello" to tmux
+
+With `fallback_undefined = false` (legacy):
+- `/deploy` (defined) → Executes custom command
+- `/login` (undefined) → Shows error "Unknown command: /login"
+- `hello` (no slash) → Sent as "hello" to tmux
+
 ## Setup
 
 1. Add slash command definitions to your `config.toml`:
 
 ```toml
+# Optional: Configure fallback behavior
+[slash_commands_settings]
+fallback_undefined = true  # default value
+
 [slash_commands.deploy]
 template = "cd /app && git checkout {branch} && npm run deploy"
 defaults = { branch = "main" }

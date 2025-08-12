@@ -144,6 +144,31 @@ action = {
 }
 ```
 
+#### Regular Expression Functions
+
+Use regex for advanced pattern matching and transformation:
+
+```toml
+transforms = [
+    # Extract pattern from string
+    "regex_extract(pattern)",           # Extract first match
+    "regex_extract(pattern, group_num)", # Extract specific capture group
+    
+    # Replace using regex
+    "regex_replace(pattern, replacement)",  # Replace all matches
+    "regex_replace(([a-z]+)-([0-9]+), \\2_\\1)", # Use capture groups in replacement
+    
+    # Conditional based on pattern match
+    "regex_match(pattern, if_match, if_no_match)", # Return different values
+    "regex_match(^prod)"  # Return original if match, empty if not
+]
+```
+
+Examples:
+- `regex_extract(v([0-9.]+))` - Extract version number
+- `regex_replace([^a-z0-9]+, _)` - Sanitize to alphanumeric
+- `regex_match(prod, production, development)` - Map based on pattern
+
 Transformations are applied in sequence after mapping:
 
 ## Execution Conditions

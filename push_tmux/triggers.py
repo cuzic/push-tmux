@@ -238,10 +238,92 @@ class TriggerPattern:
                 length = self._resolve_arg(args_str, variables)
                 return value[:length]
             
+            elif func_name == 'regex_extract':
+                # regex_extract(pattern, group_num=0)
+                args = self._parse_regex_args(args_str)
+                if len(args) >= 1:
+                    pattern = args[0]
+                    group_num = int(args[1]) if len(args) > 1 else 0
+                    match = re.search(pattern, value)
+                    if match:
+                        try:
+                            return match.group(group_num)
+                        except IndexError:
+                            return match.group(0)
+                    return value  # Return original if no match
+            
+            elif func_name == 'regex_replace':
+                # regex_replace(pattern, replacement)
+                args = self._parse_regex_args(args_str)
+                if len(args) >= 2:
+                    pattern = args[0]
+                    replacement = args[1]
+                    return re.sub(pattern, replacement, value)
+            
+            elif func_name == 'regex_match':
+                # regex_match(pattern, true_value, false_value)
+                args = self._parse_regex_args(args_str)
+                if len(args) >= 3:
+                    pattern = args[0]
+                    true_val = args[1]
+                    false_val = args[2]
+                    
+                    # Expand variables in true/false values
+                    try:
+                        true_val = true_val.format(**variables) if '{' in true_val else true_val
+                    except (KeyError, ValueError):
+                        pass
+                    try:
+                        false_val = false_val.format(**variables) if '{' in false_val else false_val
+                    except (KeyError, ValueError):
+                        pass
+                    
+                    if re.search(pattern, value):
+                        return true_val
+                    else:
+                        return false_val
+                elif len(args) >= 1:
+                    # Return original if matches, empty if not
+                    pattern = args[0]
+                    if re.search(pattern, value):
+                        return value
+                    else:
+                        return ""
+            
         except Exception as e:
             click.echo(f"Error applying transform '{transform}': {e}", err=True)
         
         return value
+    
+    def _parse_regex_args(self, args_str: str, variables: Dict[str, Any] = None) -> List[str]:
+        """Parse arguments for regex functions, handling escaped commas"""
+        args = []
+        current_arg = []
+        in_quotes = False
+        escape_next = False
+        has_comma = False
+        
+        for char in args_str:
+            if escape_next:
+                current_arg.append(char)
+                escape_next = False
+            elif char == '\\':
+                escape_next = True
+                current_arg.append(char)  # Keep backslash for regex
+            elif char in ('"', "'"):
+                in_quotes = not in_quotes
+            elif char == ',' and not in_quotes:
+                args.append(''.join(current_arg).strip().strip('"\''))
+                current_arg = []
+                has_comma = True
+            else:
+                current_arg.append(char)
+        
+        # Add the last argument
+        if current_arg or has_comma:
+            args.append(''.join(current_arg).strip().strip('"\''))
+        
+        return args
     
     def _resolve_arg(self, arg: str, variables: Dict[str, Any]) -> int:
         """Resolve an argument that might be a number or variable"""

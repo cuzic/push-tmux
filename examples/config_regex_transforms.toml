@@ -1,0 +1,179 @@
+[tmux]
+use_device_name_as_session = true
+enter_delay = 1.0
+
+# Example: Extract version number from branch name
+[triggers.version_deploy]
+match = {
+    pattern = "deploy branch:(\\S+)",
+    from_devices = ["ci-server"]
+}
+action = {
+    template = "deploy_version.sh {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "regex_extract(v?([0-9]+\\.[0-9]+))",  # Extract version like 1.2 or v1.2
+        "prefix(version_)",
+        "regex_replace(\\., _)"                 # Replace dots with underscores
+    ]
+}
+# Message: "deploy branch:release-v2.5.3"
+# Result: target_device = "version_2_5"
+
+# Example: Sanitize session names
+[triggers.sanitize_session]
+match = {
+    pattern = "connect to (.+)"
+}
+action = {
+    template = "ssh {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "lower()",
+        "regex_replace([^a-z0-9]+, _)",  # Replace non-alphanumeric with underscore
+        "regex_replace(_+, _)",           # Collapse multiple underscores
+        "regex_replace(^_|_$, )",         # Remove leading/trailing underscores
+        "truncate(20)"
+    ]
+}
+# Message: "connect to Test@Server#123!"
+# Result: target_device = "test_server_123"
+
+# Example: Extract domain from URL
+[triggers.domain_router]
+match = {
+    pattern = "check site (.+)"
+}
+action = {
+    template = "curl {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "regex_extract(https?://([^/:]+))",  # Extract domain from URL
+        "regex_replace(www\\., )",            # Remove www prefix
+        "regex_replace(\\., _)",              # Replace dots with underscores
+        "suffix(_monitor)"
+    ]
+}
+# Message: "check site https://www.example.com/path"
+# Result: target_device = "example_com_monitor"
+
+# Example: Branch type routing
+[triggers.branch_router]
+match = {
+    pattern = "build branch:(\\S+)"
+}
+action = {
+    template = "git checkout {group1} && make build",
+    target_device = "{group1}",
+    transforms = [
+        "regex_replace(^feature/, feat_)",
+        "regex_replace(^bugfix/, fix_)",
+        "regex_replace(^hotfix/, hot_)",
+        "regex_replace(/, _)",  # Replace remaining slashes
+        "truncate(25)"
+    ]
+}
+# Message: "build branch:feature/new-ui-components"
+# Result: target_device = "feat_new-ui-components"
+
+# Example: Conditional routing based on pattern
+[triggers.environment_router]
+match = {
+    pattern = "deploy to (\\S+)"
+}
+action = {
+    template = "deploy.sh",
+    target_device = "{group1}",
+    transforms = [
+        "regex_match(.*-prod$, production, {group1})",  # If ends with -prod, use "production"
+        "regex_match(.*-dev$, development, {group1})",  # If ends with -dev, use "development"
+        "regex_match(.*-test$, testing, {group1})"      # If ends with -test, use "testing"
+    ]
+}
+# Message: "deploy to app-prod" -> target_device = "production"
+# Message: "deploy to api-dev" -> target_device = "development"
+# Message: "deploy to web-staging" -> target_device = "web-staging" (no match)
+
+# Example: Extract and swap parts
+[triggers.swap_parts]
+match = {
+    pattern = "route (\\S+)"
+}
+action = {
+    template = "route_command.sh",
+    target_device = "{group1}",
+    transforms = [
+        "regex_replace(([a-z]+)-([0-9]+), \\2_\\1)"  # Swap letters and numbers
+    ]
+}
+# Message: "route server-123" -> target_device = "123_server"
+
+# Example: Filter sessions by pattern
+[triggers.filter_session]
+match = {
+    pattern = "attach (\\S+)"
+}
+action = {
+    template = "tmux attach -t {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "regex_match(^[a-z][a-z0-9_]*$)",  # Only allow valid session names
+        "truncate(20)"
+    ]
+}
+# Valid: "attach my_session" -> target_device = "my_session"
+# Invalid: "attach 123-test!" -> target_device = "" (filtered out)
+
+# Example: Extract Jira ticket number
+[triggers.jira_session]
+match = {
+    pattern = "work on (.+)"
+}
+action = {
+    template = "open_jira.sh {group1}",
+    target_device = "{group1}",
+    transforms = [
+        "upper()",
+        "regex_extract([A-Z]{2,}-[0-9]+)",  # Extract JIRA-123 format
+        "lower()",
+        "prefix(jira_)"
+    ]
+}
+# Message: "work on fixing bug ABC-456 today"
+# Result: target_device = "jira_abc-456"
+
+# Example: Complex email processing
+[triggers.email_processor]
+match = {
+    pattern = "email from (.+)"
+}
+action = {
+    template = "process_email.sh",
+    target_device = "{group1}",
+    transforms = [
+        "regex_extract(([^@]+)@([^.]+))",      # Extract user@domain
+        "regex_replace(@, _at_)",              # Replace @ with _at_
+        "regex_replace([^a-z0-9_], )",         # Remove special chars
+        "truncate(25)"
+    ]
+}
+# Message: "email from john.doe@example.com"
+# Result: target_device = "johndoe_at_example"
+
+# Example: Path to session name
+[triggers.path_session]
+match = {
+    pattern = "open project (.+)"
+}
+action = {
+    template = "cd {group1} && vim",
+    target_device = "{group1}",
+    transforms = [
+        "regex_extract([^/]+$)",               # Extract last path component
+        "regex_replace(-|\\.|\\s, _)",         # Replace separators with underscore
+        "lower()",
+        "prefix(proj_)"
+    ]
+}
+# Message: "open project /home/user/my-project.git"
+# Result: target_device = "proj_my_project_git"
