@@ -40,3 +40,10 @@ Thumbs.db
 # Coverage
 .coverage
 htmlcov/
+
+# Archive directories
+.archive/
+archive/legacy/
+
+# Local development notes
+archive/development/
