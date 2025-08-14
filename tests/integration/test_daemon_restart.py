@@ -2,17 +2,18 @@
 """
 デーモンの自動再起動機能のテスト
 """
+
 import sys
 import subprocess
 
 
 class TestDaemonRestart:
     """デーモン再起動機能のテスト"""
-    
+
     def test_daemon_crash_recovery(self, tmp_path):
         """クラッシュ後の自動再起動をテスト"""
         counter_file = tmp_path / "daemon_test_counter.txt"
-        
+
         # テスト用のスクリプトを作成
         test_script = tmp_path / "test_daemon.py"
         test_script.write_text(f"""
@@ -46,19 +47,19 @@ if count == 3:
 time.sleep(2)
 print(f"[TEST] 正常終了 #{{count}}")
 """)
-        
+
         # TODO: hupperを使った再起動のテストを実装
         # 現在は基本的な動作確認のみ
         result = subprocess.run(
             [sys.executable, str(test_script)],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
-        
+
         assert "[TEST] プロセス起動 #1" in result.stdout
         assert "[TEST] 正常終了 #1" in result.stdout
-        
+
         # カウンターファイルが作成されていることを確認
         assert counter_file.exists()
         with open(counter_file) as f:
