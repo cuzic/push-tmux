@@ -175,7 +175,8 @@ def _create_auto_route_handler(api_key, config):
                     if command:
                         # Check if it's a built-in command
                         is_builtin, result, error = await execute_builtin_command(
-                            command, arguments, config, api_key, source_device_iden
+                            command, arguments, config, api_key, source_device_iden,
+                            source_device_name
                         )
                         
                         if is_builtin:
@@ -281,7 +282,8 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
             if command:
                 # Check if it's a built-in command
                 is_builtin, result, error = await execute_builtin_command(
-                    command, arguments, config, api_key, source_device_iden
+                    command, arguments, config, api_key, source_device_iden,
+                    source_device_name
                 )
                 
                 if is_builtin:

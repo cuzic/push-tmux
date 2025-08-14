@@ -38,7 +38,7 @@ class TestCaptureCommand:
                 source_device = "source_device_id"
                 
                 success, error = await handle_capture_command(
-                    args, config, api_key, source_device
+                    args, config, api_key, source_device, "test-device"
                 )
                 
                 assert success is True
@@ -68,7 +68,7 @@ class TestCaptureCommand:
                 source_device = "source_device_id"
                 
                 success, error = await handle_capture_command(
-                    args, config, api_key, source_device
+                    args, config, api_key, source_device, "test-device"
                 )
                 
                 assert success is True
@@ -99,6 +99,45 @@ class TestCaptureCommand:
             assert error == "Failed to capture pane content"
 
     @pytest.mark.asyncio
+    async def test_capture_with_device_default_tty(self):
+        """Test capturing using device's default tty"""
+        with patch("push_tmux.builtin_commands.get_tracker") as mock_tracker_func:
+            mock_tracker = MagicMock()
+            mock_tracker.get_device_tty.return_value = "pts/5"
+            mock_tracker_func.return_value = mock_tracker
+            
+            with patch("push_tmux.builtin_commands.capture_pane") as mock_capture:
+                mock_capture.return_value = "Content from device's tty"
+                
+                with patch("push_tmux.builtin_commands.get_pane_tty") as mock_get_tty:
+                    mock_get_tty.return_value = "pts/5"
+                    
+                    with patch("push_tmux.builtin_commands.AsyncPushbullet") as mock_pb_class:
+                        mock_pb = AsyncMock()
+                        mock_pb.push_note = AsyncMock()
+                        mock_pb_class.return_value.__aenter__.return_value = mock_pb
+                        
+                        args = {}  # No arguments - should use device's default
+                        config = {}
+                        api_key = "test_key"
+                        source_device = "source_device_id"
+                        source_device_name = "test-device"
+                        
+                        success, error = await handle_capture_command(
+                            args, config, api_key, source_device, source_device_name
+                        )
+                        
+                        assert success is True
+                        assert error is None
+                        
+                        # Should have used device's tty
+                        mock_tracker.get_device_tty.assert_called_once_with("test-device")
+                        mock_capture.assert_called_once_with("pts/5")
+                        
+                        # Should update the tracking
+                        mock_tracker.set_device_tty.assert_called_with("test-device", "pts/5")
+
+    @pytest.mark.asyncio
     async def test_capture_truncation(self):
         """Test content truncation for long captures"""
         with patch("push_tmux.builtin_commands.capture_pane") as mock_capture:
@@ -117,7 +156,7 @@ class TestCaptureCommand:
                 source_device = "source_device_id"
                 
                 success, error = await handle_capture_command(
-                    args, config, api_key, source_device
+                    args, config, api_key, source_device, "test-device"
                 )
                 
                 assert success is True
@@ -145,13 +184,13 @@ class TestExecuteBuiltinCommand:
             source_device = "source_device_id"
             
             is_builtin, result, error = await execute_builtin_command(
-                command, args, config, api_key, source_device
+                command, args, config, api_key, source_device, "test-device"
             )
             
             assert is_builtin is True
             assert result is None  # Success
             assert error is None
-            mock_handle.assert_called_once_with(args, config, api_key, source_device)
+            mock_handle.assert_called_once_with(args, config, api_key, source_device, "test-device")
 
     @pytest.mark.asyncio
     async def test_execute_non_builtin_command(self):

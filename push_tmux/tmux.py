@@ -284,6 +284,44 @@ async def _resolve_window_pane(
     return target_window, target_pane
 
 
+async def get_pane_tty(pane_spec: Optional[str] = None) -> Optional[str]:
+    """
+    Get the tty of a tmux pane
+    
+    Args:
+        pane_spec: Pane specification (e.g., "session:window.pane")
+                  If None, gets current pane tty
+    
+    Returns:
+        The tty (e.g., "pts/3") or None if error
+    """
+    try:
+        # Build tmux display-message command to get pane tty
+        cmd = ["tmux", "display-message", "-p", "#{pane_tty}"]
+        
+        if pane_spec:
+            cmd.extend(["-t", pane_spec])
+        
+        result = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await result.communicate()
+        
+        if result.returncode == 0:
+            tty = stdout.decode("utf-8").strip()
+            # Normalize to just "pts/X" format
+            if tty.startswith('/dev/'):
+                tty = tty.replace('/dev/', '')
+            return tty
+        else:
+            return None
+            
+    except Exception:
+        return None
+
+
 async def capture_pane(pane_spec: Optional[str] = None) -> Optional[str]:
     """
     Capture the content of a tmux pane
@@ -367,6 +405,15 @@ async def send_to_tmux(config, message, device_name=None):
 
     # tmux送信先を構築
     target = f"{target_session}:{target_window}.{target_pane}"
+    
+    # Track the tty for this device
+    if device_name:
+        tty = await get_pane_tty(target)
+        if tty:
+            from .device_tty_tracker import get_tracker
+            tracker = get_tracker()
+            tracker.set_device_tty(device_name, tty)
+            click.echo(f"Tracking tty {tty} for device {device_name}")
 
     # Enter送信前の遅延時間を設定から取得（デフォルト0.5秒）
     enter_delay = tmux_config.get("enter_delay", 0.5)

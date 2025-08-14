@@ -253,11 +253,12 @@ The `/capture` command captures the content of a tmux pane and sends it back to 
 
 #### Usage
 
-1. **Capture current pane**:
+1. **Capture device's associated pane** (NEW):
    ```
    /capture
    ```
-   Captures the content of the currently active tmux pane.
+   When no argument is provided, captures the pane that was last used with this device.
+   push-tmux automatically tracks which tty (pts) each device uses when sending messages.
 
 2. **Capture specific pane by pts**:
    ```
@@ -265,15 +266,17 @@ The `/capture` command captures the content of a tmux pane and sends it back to 
    ```
    Captures the content of the pane with pts/3.
 
-3. **Capture by session:window.pane**:
+3. **Capture by session name**:
    ```
-   /capture mysession:0.1
+   /capture mysession
    ```
-   Captures content from session "mysession", window 0, pane 1.
+   Captures content from the specified session.
 
 #### Features
 
+- **Smart TTY Tracking**: Automatically remembers which tty (pts) each device uses
 - **Content Reply**: Captured content is sent back to the device that sent the command
+- **TTY in Title**: Reply includes "on pts/X" in the title for easy identification
 - **Automatic Truncation**: Long content is truncated to 4096 characters to fit Pushbullet limits
 - **Error Handling**: Clear error messages if pane cannot be found or captured
 

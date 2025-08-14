@@ -6,7 +6,8 @@ Built-in slash commands for push-tmux
 import click
 from typing import Dict, Any, Optional, Tuple
 from asyncpushbullet import AsyncPushbullet
-from .tmux import capture_pane
+from .tmux import capture_pane, get_pane_tty
+from .device_tty_tracker import get_tracker
 
 
 async def handle_capture_command(
@@ -14,6 +15,7 @@ async def handle_capture_command(
     config: Dict[str, Any],
     api_key: str,
     source_device_iden: str,
+    source_device_name: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Handle /capture command to capture tmux pane content
@@ -23,12 +25,21 @@ async def handle_capture_command(
         config: Configuration
         api_key: Pushbullet API key
         source_device_iden: Device ID to send reply to
+        source_device_name: Name of the source device
     
     Returns:
         (success, error_message)
     """
     # Get pane specification from arguments
     pane_spec = args.get("arg0")  # First positional argument (e.g., pts/3)
+    
+    # If no pane specified, try to use device's associated tty
+    if not pane_spec and source_device_name:
+        tracker = get_tracker()
+        device_tty = tracker.get_device_tty(source_device_name)
+        if device_tty:
+            pane_spec = device_tty
+            click.echo(f"Using device's associated tty: {device_tty}")
     
     # Capture the pane content
     content = await capture_pane(pane_spec)
@@ -44,9 +55,21 @@ async def handle_capture_command(
             if len(content) > max_length:
                 content = content[:max_length] + "\n...(truncated)"
             
-            # Send as a note
-            title = f"Captured from {pane_spec or 'current pane'}"
+            # Get the actual tty for the title
+            actual_tty = await get_pane_tty(pane_spec) if pane_spec else None
+            
+            # Send as a note with tty info in title
+            if actual_tty:
+                title = f"Captured from {pane_spec or 'current pane'} on {actual_tty}"
+            else:
+                title = f"Captured from {pane_spec or 'current pane'}"
+            
             await pb.push_note(title, content, device_iden=source_device_iden)
+            
+            # Update device-tty mapping from the title for future use
+            if source_device_name and actual_tty:
+                tracker = get_tracker()
+                tracker.set_device_tty(source_device_name, actual_tty)
             
             click.echo(f"📸 Captured and sent {len(content)} characters to source device")
             return True, None
@@ -63,6 +86,7 @@ async def execute_builtin_command(
     config: Dict[str, Any],
     api_key: str,
     source_device_iden: str,
+    source_device_name: Optional[str] = None,
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """
     Execute a built-in command
@@ -73,6 +97,7 @@ async def execute_builtin_command(
         config: Configuration
         api_key: Pushbullet API key
         source_device_iden: Device ID to send reply to
+        source_device_name: Name of the source device
         
     Returns:
         (is_builtin, result_or_command, error_message)
@@ -84,7 +109,7 @@ async def execute_builtin_command(
     # Check if it's a built-in command
     if command == "capture":
         success, error = await handle_capture_command(
-            args, config, api_key, source_device_iden
+            args, config, api_key, source_device_iden, source_device_name
         )
         return True, None if success else error, error
     
