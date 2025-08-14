@@ -122,9 +122,57 @@ class SlashCommandParser:
         
         # Use command-specific target session
         return cmd_config.get('target_session')
+    
+    def get_delay(self, command: str, arguments: Dict[str, str]) -> Optional[int]:
+        """
+        Get delay seconds for the command
+        
+        Args:
+            command: Command name
+            arguments: Parsed arguments from the message
+        
+        Returns:
+            Delay in seconds, or None if no delay
+        
+        Priority:
+            1. Arguments (delay parameter)
+            2. Command config (delay_seconds)
+            3. None (no delay)
+        """
+        if command not in self.commands:
+            return None
+        
+        cmd_config = self.commands[command]
+        
+        # Default delay from config
+        default_delay = cmd_config.get('delay_seconds')
+        
+        # Check if delay is specified in arguments
+        if 'delay' in arguments:
+            try:
+                delay_str = arguments['delay']
+                if not delay_str:  # Empty string
+                    return default_delay
+                
+                delay = float(delay_str)
+                
+                # Handle negative values
+                if delay < 0:
+                    return 0
+                
+                # Cap at 24 hours
+                if delay > 86400:
+                    return 86400
+                
+                return int(delay)
+            except (ValueError, TypeError):
+                # Invalid value, use default
+                return default_delay
+        
+        return default_delay
 
 
-def expand_slash_command(message: str, config: Dict[str, Any], device_name: str) -> Tuple[bool, Optional[str], Optional[str]]:
+def expand_slash_command(message: str, config: Dict[str, Any], device_name: str) -> Tuple[bool, Optional[str], Optional[str], Optional[int]]:
     """
     Main entry point for slash command processing
     
@@ -134,7 +182,7 @@ def expand_slash_command(message: str, config: Dict[str, Any], device_name: str)
         device_name: Name of the device sending the message
     
     Returns:
-        (is_slash_command, expanded_command, target_session)
+        (is_slash_command, expanded_command, target_session, delay_seconds)
     """
     # Check if fallback is enabled (default: True for better compatibility)
     settings = config.get('slash_commands_settings', {})
@@ -144,33 +192,36 @@ def expand_slash_command(message: str, config: Dict[str, Any], device_name: str)
     
     command, arguments = parser.parse_message(message)
     if not command:
-        return False, None, None
+        return False, None, None, None
     
     # Check if command is defined
     if command not in parser.commands:
         # Handle undefined commands based on fallback setting
         if fallback_undefined:
             # Treat as normal message
-            return False, None, None
+            return False, None, None, None
         else:
             # Legacy behavior: treat as slash command but show error
             click.echo(f"Unknown command: /{command}")
-            return True, None, None
+            return True, None, None, None
     
     # For defined commands, check execution permissions
     if not parser.should_execute(command, device_name):
         click.echo(f"Command '/{command}' not allowed for device '{device_name}'")
-        return True, None, None  # It's a slash command but shouldn't execute
+        return True, None, None, None  # It's a slash command but shouldn't execute
     
     # Execute the command
     expanded = parser.execute_command(command, arguments)
     if not expanded:
         click.echo(f"Command '/{command}' missing required arguments")
-        return True, None, None
+        return True, None, None, None
     
     target_session = parser.get_target_session(command, arguments)
     
-    return True, expanded, target_session
+    # Get delay for the command
+    delay = parser.get_delay(command, arguments)
+    
+    return True, expanded, target_session, delay
 
 
 # Helper functions for trigger conditions

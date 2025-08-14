@@ -27,12 +27,13 @@ class TestSlashCommandFallback:
         }
         
         # 未定義のコマンド /login をテスト
-        is_slash, expanded, session = expand_slash_command("/login", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/login", config, "test-device")
         
         # fallback有効時は通常メッセージとして扱われる
         assert is_slash == False
         assert expanded is None
         assert session is None
+        assert delay is None
     
     def test_undefined_command_with_fallback_disabled(self):
         """未定義コマンドがfallback無効時に無視される"""
@@ -47,12 +48,13 @@ class TestSlashCommandFallback:
         
         # 未定義のコマンド /login をテスト
         with patch('click.echo') as mock_echo:
-            is_slash, expanded, session = expand_slash_command("/login", config, "test-device")
+            is_slash, expanded, session, delay = expand_slash_command("/login", config, "test-device")
         
         # fallback無効時はスラッシュコマンドとして扱われるが実行されない
         assert is_slash == True
         assert expanded is None
         assert session is None
+        assert delay is None
         mock_echo.assert_called_with("Unknown command: /login")
     
     def test_undefined_command_with_no_settings(self):
@@ -64,12 +66,13 @@ class TestSlashCommandFallback:
         }
         
         # 未定義のコマンド /login をテスト
-        is_slash, expanded, session = expand_slash_command("/login", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/login", config, "test-device")
         
         # デフォルトではfallbackが有効
         assert is_slash == False
         assert expanded is None
         assert session is None
+        assert delay is None
     
     def test_defined_command_always_works(self):
         """定義済みコマンドは設定に関わらず動作する"""
@@ -83,9 +86,10 @@ class TestSlashCommandFallback:
             }
         }
         
-        is_slash, expanded, session = expand_slash_command("/deploy", config_enabled, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/deploy", config_enabled, "test-device")
         assert is_slash == True
         assert expanded == "echo deploy"
+        assert delay is None
         
         # fallback無効時
         config_disabled = {
@@ -97,9 +101,10 @@ class TestSlashCommandFallback:
             }
         }
         
-        is_slash, expanded, session = expand_slash_command("/deploy", config_disabled, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/deploy", config_disabled, "test-device")
         assert is_slash == True
         assert expanded == "echo deploy"
+        assert delay is None
     
     def test_non_slash_message_always_normal(self):
         """スラッシュで始まらないメッセージは常に通常メッセージ"""
@@ -110,11 +115,12 @@ class TestSlashCommandFallback:
             'slash_commands': {}
         }
         
-        is_slash, expanded, session = expand_slash_command("hello world", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("hello world", config, "test-device")
         
         assert is_slash == False
         assert expanded is None
         assert session is None
+        assert delay is None
     
     def test_edge_cases(self):
         """エッジケースのテスト"""
@@ -126,18 +132,18 @@ class TestSlashCommandFallback:
         }
         
         # 空のスラッシュ
-        is_slash, expanded, session = expand_slash_command("/", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/", config, "test-device")
         assert is_slash == False
         
         # スラッシュの後にスペース
-        is_slash, expanded, session = expand_slash_command("/ login", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/ login", config, "test-device")
         assert is_slash == False
         
         # 特殊文字を含むコマンド
-        is_slash, expanded, session = expand_slash_command("/@mention", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/@mention", config, "test-device")
         assert is_slash == False
         
-        is_slash, expanded, session = expand_slash_command("/#hashtag", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/#hashtag", config, "test-device")
         assert is_slash == False
     
     def test_japanese_command(self):
@@ -149,8 +155,9 @@ class TestSlashCommandFallback:
             'slash_commands': {}
         }
         
-        is_slash, expanded, session = expand_slash_command("/日本語コマンド", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/日本語コマンド", config, "test-device")
         assert is_slash == False
+        assert delay is None
     
     def test_command_with_arguments_fallback(self):
         """引数付き未定義コマンドのフォールバック"""
@@ -162,5 +169,6 @@ class TestSlashCommandFallback:
         }
         
         # 引数付きの未定義コマンド
-        is_slash, expanded, session = expand_slash_command("/login user:admin pass:secret", config, "test-device")
+        is_slash, expanded, session, delay = expand_slash_command("/login user:admin pass:secret", config, "test-device")
         assert is_slash == False
+        assert delay is None

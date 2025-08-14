@@ -51,3 +51,26 @@ execute_once = true
 [slash_commands.notify]
 template = "echo '{message}' | mail -s '{subject}' {email}"
 defaults = { subject = "Notification", email = "admin@example.com", message = "Task completed" }
+
+# Timer commands with delay functionality
+[slash_commands.timer]
+template = "echo '⏰ {message}'"
+defaults = { message = "Timer finished!" }
+delay_seconds = 10  # Default 10 seconds delay
+
+[slash_commands.reminder]
+template = "notify-send 'Reminder' '{text}'"
+defaults = { text = "Don't forget your task!" }
+delay_seconds = 60  # Default 1 minute delay
+
+[slash_commands.pomodoro]
+template = "echo '🍅 Pomodoro finished! Take a 5-minute break.'"
+delay_seconds = 1500  # 25 minutes
+
+[slash_commands.shortbreak]
+template = "echo '☕ Break time is over! Back to work.'"
+delay_seconds = 300  # 5 minutes
+
+[slash_commands.longbreak]
+template = "echo '🎉 Long break finished! Ready for another session?'"
+delay_seconds = 900  # 15 minutes

@@ -161,3 +161,84 @@ defaults = { user = "admin" }
 ```
 
 Send: `/ssh host:192.168.1.100 user:root`
+
+## Timer Commands (New!)
+
+push-tmux now supports delayed execution of commands using the `delay_seconds` configuration or `delay` argument.
+
+### Configuration
+
+```toml
+[slash_commands.timer]
+template = "echo '⏰ {message}'"
+defaults = { message = "Timer finished!" }
+delay_seconds = 10  # Execute after 10 seconds
+
+[slash_commands.pomodoro]
+template = "echo '🍅 Pomodoro finished! Take a break.'"
+delay_seconds = 1500  # 25 minutes
+```
+
+### Usage Examples
+
+1. **Basic timer (10 seconds default)**:
+   ```
+   /timer
+   ```
+   Output: ⏰ Timer set for 10 seconds
+
+2. **Custom delay**:
+   ```
+   /timer delay:30 message:"Meeting starting!"
+   ```
+   Output: ⏰ Timer set for 30 seconds
+
+3. **Pomodoro timer**:
+   ```
+   /pomodoro
+   ```
+   Output: ⏰ Timer set for 1500 seconds (25 minutes)
+
+4. **Quick reminder**:
+   ```
+   /reminder delay:120 text:"Check the build"
+   ```
+   Output: ⏰ Timer set for 120 seconds
+
+### Features
+
+- **Non-blocking**: Timers run asynchronously without blocking tmux
+- **Multiple timers**: Run multiple timers simultaneously
+- **Dynamic delays**: Override default delay with `delay` argument
+- **Immediate feedback**: Get confirmation when timer is set
+
+### Practical Use Cases
+
+1. **Pomodoro Technique**:
+   ```toml
+   [slash_commands.work]
+   template = "echo '💼 Work session started'"
+   delay_seconds = 1500  # 25 minutes
+   
+   [slash_commands.break]
+   template = "echo '☕ Take a 5-minute break'"
+   delay_seconds = 300  # 5 minutes
+   ```
+
+2. **Meeting Reminders**:
+   ```
+   /reminder delay:600 text:"Team standup in 10 minutes"
+   ```
+
+3. **Build Notifications**:
+   ```
+   /timer delay:180 message:"Check CI/CD pipeline"
+   ```
+
+4. **Multiple Timers**:
+   ```
+   /timer delay:60 message:"1 minute"
+   /timer delay:120 message:"2 minutes"
+   /timer delay:180 message:"3 minutes"
+   ```
+   All three timers run concurrently!
