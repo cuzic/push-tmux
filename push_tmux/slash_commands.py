@@ -174,6 +174,49 @@ class SlashCommandParser:
         return default_delay
 
 
+def parse_slash_command(message: str) -> Tuple[Optional[str], Dict[str, str]]:
+    """
+    Parse a slash command message
+    
+    Args:
+        message: The message to parse
+        
+    Returns:
+        (command_name, arguments)
+    """
+    if not message.startswith("/"):
+        return None, {}
+    
+    # Extract command and arguments
+    parts = message.split(None, 1)
+    if not parts:
+        return None, {}
+    
+    command = parts[0][1:]  # Remove leading slash
+    args_str = parts[1] if len(parts) > 1 else ""
+    
+    # Parse arguments
+    arguments = {}
+    if args_str:
+        # Match key:value or key=value patterns
+        pattern = r"(\w+)[:=]([^\s]+)"
+        matches = re.findall(pattern, args_str)
+        
+        for key, value in matches:
+            arguments[key] = value
+        
+        # Also capture positional arguments
+        # Remove key:value pairs first
+        remaining = re.sub(pattern, "", args_str).strip()
+        if remaining:
+            # Split remaining text as positional arguments
+            positionals = remaining.split()
+            for i, val in enumerate(positionals):
+                arguments[f"arg{i}"] = val
+    
+    return command, arguments
+
+
 def expand_slash_command(
     message: str, config: Dict[str, Any], device_name: str
 ) -> Tuple[bool, Optional[str], Optional[str], Optional[int]]:

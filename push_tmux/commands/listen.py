@@ -20,6 +20,7 @@ from ..device import (
 from ..tmux import send_to_tmux
 from ..slash_commands import expand_slash_command, check_trigger_conditions
 from ..triggers import check_triggers, process_trigger_actions
+from ..builtin_commands import execute_builtin_command
 
 
 async def delayed_execution(
@@ -166,6 +167,24 @@ def _create_auto_route_handler(api_key, config):
                         return
 
                     # Check if it's a slash command
+                    from ..slash_commands import parse_slash_command
+                    
+                    # First parse the command
+                    command, arguments = parse_slash_command(message)
+                    
+                    if command:
+                        # Check if it's a built-in command
+                        is_builtin, result, error = await execute_builtin_command(
+                            command, arguments, config, api_key, source_device_iden
+                        )
+                        
+                        if is_builtin:
+                            # Built-in command handled
+                            if error:
+                                click.echo(f"Built-in command error: {error}", err=True)
+                            return
+                    
+                    # Not a built-in command, process as regular slash command
                     is_slash, expanded_cmd, target_session, delay = (
                         expand_slash_command(message, config, device_name)
                     )
@@ -254,6 +273,24 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
                 return
 
             # Check if it's a slash command
+            from ..slash_commands import parse_slash_command
+            
+            # First parse the command
+            command, arguments = parse_slash_command(message)
+            
+            if command:
+                # Check if it's a built-in command
+                is_builtin, result, error = await execute_builtin_command(
+                    command, arguments, config, api_key, source_device_iden
+                )
+                
+                if is_builtin:
+                    # Built-in command handled
+                    if error:
+                        click.echo(f"Built-in command error: {error}", err=True)
+                    return
+            
+            # Not a built-in command, process as regular slash command
             is_slash, expanded_cmd, target_session, delay = expand_slash_command(
                 message, config, device_name
             )

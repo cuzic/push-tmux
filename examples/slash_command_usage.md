@@ -242,3 +242,75 @@ delay_seconds = 1500  # 25 minutes
    /timer delay:180 message:"3 minutes"
    ```
    All three timers run concurrently!
+
+## Built-in Commands
+
+push-tmux includes several built-in commands that provide special functionality beyond simple command execution.
+
+### /capture - Capture tmux Pane Content
+
+The `/capture` command captures the content of a tmux pane and sends it back to the requesting device via Pushbullet.
+
+#### Usage
+
+1. **Capture current pane**:
+   ```
+   /capture
+   ```
+   Captures the content of the currently active tmux pane.
+
+2. **Capture specific pane by pts**:
+   ```
+   /capture pts/3
+   ```
+   Captures the content of the pane with pts/3.
+
+3. **Capture by session:window.pane**:
+   ```
+   /capture mysession:0.1
+   ```
+   Captures content from session "mysession", window 0, pane 1.
+
+#### Features
+
+- **Content Reply**: Captured content is sent back to the device that sent the command
+- **Automatic Truncation**: Long content is truncated to 4096 characters to fit Pushbullet limits
+- **Error Handling**: Clear error messages if pane cannot be found or captured
+
+#### Use Cases
+
+1. **Remote Monitoring**:
+   - Check log output from your phone
+   - Monitor long-running processes
+   - Review error messages
+
+2. **Content Sharing**:
+   - Share terminal output with team members
+   - Save important command results
+   - Document system states
+
+3. **Debugging**:
+   - Capture error messages for analysis
+   - Review command history
+   - Check application status
+
+#### Example Workflow
+
+1. Start a process in tmux:
+   ```bash
+   tmux new-session -s monitoring
+   tail -f /var/log/application.log
+   ```
+
+2. From your phone, send via Pushbullet:
+   ```
+   /capture monitoring:0.0
+   ```
+
+3. Receive the log content back on your phone as a Pushbullet note.
+
+#### Limitations
+
+- Maximum 4096 characters per capture (Pushbullet API limit)
+- Requires tmux to be running
+- Source device must be registered with Pushbullet to receive replies

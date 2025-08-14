@@ -6,6 +6,7 @@ tmux integration utilities for push-tmux
 import asyncio
 import click
 import os
+from typing import Optional
 from .device import _resolve_device_mapping
 
 
@@ -281,6 +282,49 @@ async def _resolve_window_pane(
         target_pane = pane_setting
 
     return target_window, target_pane
+
+
+async def capture_pane(pane_spec: Optional[str] = None) -> Optional[str]:
+    """
+    Capture the content of a tmux pane
+    
+    Args:
+        pane_spec: Pane specification (e.g., "pts/3", "session:window.pane")
+                  If None, captures current pane
+    
+    Returns:
+        Captured text content or None if error
+    """
+    try:
+        # Build tmux capture-pane command
+        cmd = ["tmux", "capture-pane", "-p"]  # -p outputs to stdout
+        
+        if pane_spec:
+            # Convert pts/X format to tmux pane format if needed
+            if pane_spec.startswith("pts/"):
+                # Find pane by pts
+                cmd.extend(["-t", f"%{pane_spec}"])
+            else:
+                # Use as-is (session:window.pane format)
+                cmd.extend(["-t", pane_spec])
+        
+        # Execute capture command
+        result = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await result.communicate()
+        
+        if result.returncode == 0:
+            return stdout.decode("utf-8")
+        else:
+            click.echo(f"Error capturing pane: {stderr.decode('utf-8')}", err=True)
+            return None
+            
+    except Exception as e:
+        click.echo(f"Failed to capture pane: {e}", err=True)
+        return None
 
 
 async def _send_tmux_commands(target, message, enter_delay=0.5):
