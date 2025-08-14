@@ -7,11 +7,37 @@ import click
 import os
 import aiohttp
 from asyncpushbullet import AsyncPushbullet, LiveStreamListener
+from typing import Dict, Any
 from ..config import load_config, get_device_name
 from ..device import _resolve_target_device, _find_device_by_name_or_id, _resolve_specific_device, _resolve_default_device, _get_device_attr
 from ..tmux import send_to_tmux
 from ..slash_commands import expand_slash_command, check_trigger_conditions
 from ..triggers import check_triggers, process_trigger_actions
+
+
+async def delayed_execution(
+    delay: int, 
+    config: Dict[str, Any], 
+    command: str, 
+    target: str,
+    original_message: str = ""
+) -> None:
+    """
+    Execute command after specified delay
+    
+    Args:
+        delay: Seconds to wait
+        config: Configuration dictionary
+        command: Expanded command to execute
+        target: Target tmux session
+        original_message: Original slash command for logging
+    """
+    try:
+        await asyncio.sleep(delay)
+        await send_to_tmux(config, command, target)
+        click.echo(f"⏰ Timer executed after {delay} seconds{f': {original_message}' if original_message else ''}")
+    except Exception as e:
+        click.echo(f"Error in delayed execution: {e}", err=True)
 
 
 async def _display_auto_route_devices(api_key):
@@ -105,14 +131,23 @@ def _create_auto_route_handler(api_key, config):
                         return
                     
                     # Check if it's a slash command
-                    is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
+                    is_slash, expanded_cmd, target_session, delay = expand_slash_command(message, config, device_name)
                     
                     if is_slash:
                         if expanded_cmd and check_trigger_conditions(message.split()[0][1:], config):
                             # Execute the expanded command
                             final_target = target_session or device_name
-                            await send_to_tmux(config, expanded_cmd, final_target)
-                            click.echo(f"Executed slash command: {message.split()[0]} for device '{device_name}'")
+                            
+                            if delay and delay > 0:
+                                # Execute asynchronously after delay
+                                asyncio.create_task(
+                                    delayed_execution(delay, config, expanded_cmd, final_target, message.split()[0])
+                                )
+                                click.echo(f"⏰ Timer set for {delay} seconds: {message.split()[0]}")
+                            else:
+                                # Execute immediately
+                                await send_to_tmux(config, expanded_cmd, final_target)
+                                click.echo(f"Executed slash command: {message.split()[0]} for device '{device_name}'")
                         # else: command was rejected or had missing args, already handled by expand_slash_command
                     else:
                         # Regular message (or fallback from undefined slash command)
@@ -160,14 +195,23 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
                 return
             
             # Check if it's a slash command
-            is_slash, expanded_cmd, target_session = expand_slash_command(message, config, device_name)
+            is_slash, expanded_cmd, target_session, delay = expand_slash_command(message, config, device_name)
             
             if is_slash:
                 if expanded_cmd and check_trigger_conditions(message.split()[0][1:], config):
                     # Execute the expanded command
                     final_target = target_session or device_name
-                    await send_to_tmux(config, expanded_cmd, final_target)
-                    click.echo(f"Executed slash command: {message.split()[0]}")
+                    
+                    if delay and delay > 0:
+                        # Execute asynchronously after delay
+                        asyncio.create_task(
+                            delayed_execution(delay, config, expanded_cmd, final_target, message.split()[0])
+                        )
+                        click.echo(f"⏰ Timer set for {delay} seconds: {message.split()[0]}")
+                    else:
+                        # Execute immediately
+                        await send_to_tmux(config, expanded_cmd, final_target)
+                        click.echo(f"Executed slash command: {message.split()[0]}")
                 # else: command was rejected or had missing args, already handled by expand_slash_command
             else:
                 # Regular message (or fallback from undefined slash command)
