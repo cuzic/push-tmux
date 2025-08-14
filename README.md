@@ -99,10 +99,10 @@ To make `push-tmux` available from any directory:
 
 ```bash
 # Install to ~/.local/bin (make sure it's in your PATH)
-./install-wrapper.sh
+./scripts/install-wrapper.sh
 
 # Or install to system-wide location (requires sudo)
-sudo ./install-wrapper.sh /usr/local/bin
+sudo ./scripts/install-wrapper.sh /usr/local/bin
 ```
 
 After installation, you can run `push-tmux` from anywhere:
