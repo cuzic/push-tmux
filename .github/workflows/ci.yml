@@ -45,8 +45,10 @@ jobs:
         uv run ruff format --check .
         uv run ruff check .
         
-    - name: Run type checking with mypy
-      run: uv run mypy push_tmux/ --ignore-missing-imports
+    - name: Run type checking with pyright
+      run: |
+        uv add --dev pyright
+        uv run pyright push_tmux/
       continue-on-error: true  # Don't fail CI on type errors initially
       
     - name: Run tests with coverage
