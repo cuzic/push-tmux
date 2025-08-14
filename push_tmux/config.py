@@ -2,6 +2,7 @@
 """
 Configuration management utilities for push-tmux
 """
+
 import os
 import toml
 from pathlib import Path
@@ -18,27 +19,27 @@ CONFIG_FILE = Path("config.toml")
 def _get_default_config():
     """デフォルト設定を返す"""
     return {
-        'tmux': {
-            'target_session': 'current',
-            'target_window': 'first',  
-            'target_pane': 'first'
+        "tmux": {
+            "target_session": "current",
+            "target_window": "first",
+            "target_pane": "first",
         },
-        'daemon': {
-            'reload_interval': 1.0,
-            'watch_files': ['config.toml', '.env'],
-            'ignore_patterns': ['*.pyc', '__pycache__/*', '.git/*', '*.log'],
-            'logging': {
-                'enable_reload_logs': True,
-                'log_file': '',
-                'log_level': 'INFO'
+        "daemon": {
+            "reload_interval": 1.0,
+            "watch_files": ["config.toml", ".env"],
+            "ignore_patterns": ["*.pyc", "__pycache__/*", ".git/*", "*.log"],
+            "logging": {
+                "enable_reload_logs": True,
+                "log_file": "",
+                "log_level": "INFO",
             },
-            'monitoring': {
-                'cpu_threshold': 80.0,
-                'memory_threshold': 500,
-                'websocket_check': True,
-                'heartbeat_interval': 30
-            }
-        }
+            "monitoring": {
+                "cpu_threshold": 80.0,
+                "memory_threshold": 500,
+                "websocket_check": True,
+                "heartbeat_interval": 30,
+            },
+        },
     }
 
 
@@ -55,18 +56,20 @@ def _merge_configs(default_config, user_config):
     merged = {}
     for key in default_config:
         if key in user_config:
-            if isinstance(default_config[key], dict) and isinstance(user_config[key], dict):
+            if isinstance(default_config[key], dict) and isinstance(
+                user_config[key], dict
+            ):
                 merged[key] = dict(ChainMap(user_config[key], default_config[key]))
             else:
                 merged[key] = user_config[key]
         else:
             merged[key] = default_config[key]
-    
+
     # ユーザー設定にのみ存在するキーも追加
     for key in user_config:
         if key not in merged:
             merged[key] = user_config[key]
-    
+
     return merged
 
 
@@ -79,10 +82,10 @@ def load_config():
 
 def save_config(config):
     """設定をconfig.tomlに保存"""
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         toml.dump(config, f)
 
 
 def get_device_name():
     """デバイス名を取得（環境変数またはディレクトリ名）"""
-    return os.getenv('DEVICE_NAME') or os.path.basename(os.getcwd())
+    return os.getenv("DEVICE_NAME") or os.path.basename(os.getcwd())
