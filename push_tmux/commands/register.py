@@ -47,11 +47,28 @@ def register(name):
                     )
                     return
 
-                device = await pb.async_new_device(device_name)
+                # Work around asyncpushbullet bug: use API directly
+                import json
+                data = {
+                    "nickname": device_name,
+                    "type": "stream",
+                    "manufacturer": "push-tmux",
+                    "model": "CLI",
+                    "icon": "system"
+                }
+                device_response = await pb._async_post_data(
+                    pb.DEVICES_URL,
+                    json=data  # Use json parameter instead of data
+                )
+                device = device_response
                 click.echo(f"デバイス '{device_name}' を登録しました。")
                 click.echo(f"デバイスID: {_get_device_attr(device, 'iden')}")
 
             except Exception as e:
                 click.echo(f"デバイス登録中にエラーが発生しました: {e}", err=True)
+                # デバッグ情報を表示
+                if "--debug" in os.sys.argv:
+                    import traceback
+                    traceback.print_exc()
 
     asyncio.run(_register())
