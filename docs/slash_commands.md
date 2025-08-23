@@ -1,11 +1,12 @@
 # Slash Commands
 
-push-tmux supports slash commands that allow you to send templated commands to tmux sessions via Pushbullet messages.
+push-tmux supports both built-in and custom slash commands that allow you to send templated commands to tmux sessions via Pushbullet messages.
 
 ## Overview
 
 Slash commands provide a way to:
-- Define command templates in `config.toml`
+- Use built-in commands like `/capture` for special functionality
+- Define custom command templates in `config.toml`
 - Send commands with optional arguments via device messages
 - Control which devices can execute specific commands
 - Route commands to specific tmux sessions
@@ -180,6 +181,66 @@ Run listener with debug flag to see command expansion:
 push-tmux start --debug
 ```
 
-## Examples Configuration File
+## Built-in Commands
+
+push-tmux includes powerful built-in commands that provide special functionality beyond simple command execution.
+
+### /capture - Capture tmux Pane Content
+
+The `/capture` command captures the content of a tmux pane and sends it back to your device via Pushbullet.
+
+#### Smart TTY Tracking
+
+push-tmux automatically tracks which pane (tty/pts) each device uses. When you send `/capture` without arguments, it captures from the pane you were last using!
+
+#### Usage
+
+```bash
+# Capture from device's associated pane (automatic)
+/capture
+
+# Capture specific pane by pts
+/capture pts/3
+
+# Capture by session name
+/capture mysession
+```
+
+#### Features
+
+- **Smart Defaults**: Automatically captures from the pane your device was using
+- **TTY Tracking**: Remembers device-to-tty associations persistently (stored in `~/.cache/push-tmux/device_tty_map.json`)
+- **Content Reply**: Sends captured content back as a Pushbullet note
+- **TTY in Title**: Shows "on pts/X" in reply for easy identification
+- **Auto-truncation**: Handles long content (4096 char limit)
+
+#### Use Cases
+
+1. **Remote Monitoring**:
+   - Check log output from your phone
+   - Monitor long-running processes
+   - Review error messages
+
+2. **Content Sharing**:
+   - Share terminal output with team members
+   - Save important command results
+   - Document system states
+
+3. **Debugging**:
+   - Capture error messages for analysis
+   - Review command history
+   - Check application status
+
+#### How TTY Tracking Works
+
+When push-tmux sends a message to tmux, it extracts the tty from the message title. Supported formats:
+- `on pts/3` - Standard format
+- `on /dev/pts/3` - Full path format
+- `[pts/3]` - Bracket format
+- `@pts/3` - At-sign format
+
+This tty information is then stored and associated with your device name for future `/capture` commands.
+
+## Custom Slash Commands Configuration
 
 See `examples/config_slash_commands.toml` for a complete configuration example with various slash command definitions.

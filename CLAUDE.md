@@ -12,6 +12,8 @@ push-tmux is a CLI tool that receives Pushbullet messages and automatically send
 
 1. **push_tmux.py** - Main CLI application with Click-based commands
 2. **async_pushbullet.py** - Custom async Pushbullet client and WebSocket listener
+3. **builtin_commands.py** - Built-in slash commands like /capture
+4. **device_tty_tracker.py** - Persistent device-to-tty mapping for smart defaults
 
 ### Device-Directory Mapping Strategy
 The tool uses a unique approach where each project directory can have its own Pushbullet device:
@@ -23,12 +25,16 @@ The tool uses a unique approach where each project directory can have its own Pu
 1. **Registration**: Each directory registers as a unique Pushbullet device
 2. **Listening**: WebSocket connection filters messages by target device ID
 3. **Routing**: Only device-specific messages are processed (broadcast messages are ignored)
-4. **Execution**: Messages are sent to tmux via `tmux send-keys` command
+4. **Command Processing**: Built-in commands (e.g., /capture) are handled first, then custom slash commands
+5. **Execution**: Messages are sent to tmux via `tmux send-keys` command
+6. **TTY Tracking**: Device-to-tty associations are tracked for smart command defaults
 
 ### tmux Integration Logic
 - **Session detection**: Uses `$TMUX` environment variable and `tmux display-message`
 - **Target resolution**: Dynamically finds first available window/pane if not configured
 - **Fallback**: Uses explicit session/window/pane from `config.toml` if tmux detection fails
+- **Pane capture**: `capture_pane()` function captures tmux pane content for /capture command
+- **TTY detection**: `get_pane_tty()` function retrieves pane's tty for device tracking
 
 ## Development Commands
 
@@ -167,6 +173,32 @@ if target_device != target_device_iden:
     return
 ```
 
+### Built-in Command Processing
+Built-in commands are checked before custom slash commands:
+```python
+# Check if it's a built-in command first
+is_builtin, result, error = await execute_builtin_command(
+    command, arguments, config, api_key, source_device_iden,
+    source_device_name
+)
+if is_builtin:
+    # Built-in command was handled
+    return
+```
+
+### Device-TTY Tracking
+The `DeviceTtyTracker` class maintains persistent device-to-tty mappings:
+```python
+# Extract tty from message titles
+tracker.extract_tty_from_title("on pts/3")  # Returns "pts/3"
+
+# Track device associations
+tracker.set_device_tty("device-name", "pts/3")
+
+# Use for smart defaults in /capture
+device_tty = tracker.get_device_tty("device-name")
+```
+
 ### Async WebSocket Handling
 The `AsyncPushbulletListener` class handles WebSocket connections and message parsing. Key methods:
 - `_handle_tickle()` - Fetches recent pushes when notified
@@ -188,6 +220,8 @@ The `send_to_tmux()` function has complex logic for determining the target:
 - `tests/test_push_tmux_commands.py` - CLI command behavior
 - `tests/test_tmux_integration.py` - tmux interaction mocking
 - `tests/test_utils.py` - Utility functions (config, device naming)
+- `tests/test_builtin_commands.py` - Built-in command functionality (/capture)
+- `tests/test_device_tty_tracker.py` - Device-TTY tracking and persistence
 
 ### Key Test Patterns
 - Mock `AsyncPushbullet` with `AsyncMock` for API calls
@@ -219,3 +253,15 @@ The `send_to_tmux()` function has complex logic for determining the target:
 1. Modify `send_to_tmux()` function
 2. Update session/window/pane resolution logic
 3. Add tests with mocked subprocess calls
+
+### Adding New Built-in Commands
+1. Add handler function in `builtin_commands.py`
+2. Register command in `execute_builtin_command()` function
+3. Add tests in `test_builtin_commands.py`
+4. Update documentation in README.md and examples/
+
+### Implementing Device Tracking Features
+1. Use `DeviceTtyTracker` for persistent device associations
+2. Extract device info from message titles with regex patterns
+3. Store mappings in `~/.cache/push-tmux/device_tty_map.json`
+4. Test persistence and extraction logic

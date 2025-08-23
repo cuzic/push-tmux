@@ -306,6 +306,40 @@ push-tmux send "test message"
 push-tmux send "test" --session mysession --window 0 --pane 1
 ```
 
+### Built-in Commands
+
+push-tmux includes powerful built-in commands that provide special functionality:
+
+#### /capture - Capture tmux Pane Content
+
+The `/capture` command captures tmux pane content and sends it back to your device via Pushbullet.
+
+**Smart TTY Tracking** (NEW): push-tmux automatically tracks which pane (tty/pts) each device uses. When you send `/capture` without arguments, it captures from the pane you were last using!
+
+```bash
+# Capture from device's associated pane (automatic)
+/capture
+
+# Capture specific pane by pts
+/capture pts/3
+
+# Capture by session name
+/capture mysession
+```
+
+**Features:**
+- 🎯 **Smart Defaults**: Automatically captures from the pane your device was using
+- 📍 **TTY Tracking**: Remembers device-to-tty associations persistently
+- 📋 **Content Reply**: Sends captured content back as a Pushbullet note
+- 🏷️ **TTY in Title**: Shows "on pts/X" in reply for easy identification
+- ✂️ **Auto-truncation**: Handles long content (4096 char limit)
+
+**Use Cases:**
+- Monitor long-running processes from your phone
+- Check application logs remotely
+- Share terminal output with team members
+- Debug issues by capturing error messages
+
 ## Practical Examples
 
 ### Multi-Project Setup
