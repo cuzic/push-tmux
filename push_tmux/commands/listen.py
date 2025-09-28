@@ -331,20 +331,53 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
 
 
 async def _start_message_listener(api_key, on_push, debug):
-    """メッセージリスナーを開始"""
-    try:
-        async with AsyncPushbullet(api_key) as pb:
-            async with LiveStreamListener(pb) as listener:
-                if debug:
-                    click.echo("WebSocketリスナーを開始します...")
-                while not listener.closed:
-                    push = await listener.next_push()
-                    if push:
-                        await on_push(push)
-    except aiohttp.ClientError as e:
-        click.echo(f"WebSocket接続エラー: {e}", err=True)
-    except Exception as e:
-        click.echo(f"リスナーエラー: {e}", err=True)
+    """メッセージリスナーを開始（自動再接続機能付き）"""
+    retry_count = 0
+    max_retries = -1  # 無限リトライ
+    base_wait_time = 5  # 基本待機時間（秒）
+    max_wait_time = 300  # 最大待機時間（5分）
+
+    while max_retries < 0 or retry_count < max_retries:
+        try:
+            if retry_count > 0:
+                # 指数バックオフで待機時間を増やす（最大5分まで）
+                wait_time = min(base_wait_time * (2 ** min(retry_count - 1, 6)), max_wait_time)
+                click.echo(f"WebSocket再接続を試みます... ({retry_count}回目, {wait_time}秒後)")
+                await asyncio.sleep(wait_time)
+
+            async with AsyncPushbullet(api_key) as pb:
+                async with LiveStreamListener(pb) as listener:
+                    if debug or retry_count > 0:
+                        click.echo("WebSocketリスナーを開始しました")
+
+                    # 接続成功時はリトライカウントをリセット
+                    retry_count = 0
+
+                    while not listener.closed:
+                        push = await listener.next_push()
+                        if push:
+                            await on_push(push)
+
+                    # 正常に閉じられた場合
+                    click.echo("WebSocket接続が閉じられました")
+
+        except aiohttp.ClientError as e:
+            retry_count += 1
+            click.echo(f"WebSocket接続エラー: {e}", err=True)
+            # ネットワークエラーの場合は再試行を継続
+
+        except asyncio.CancelledError:
+            # タスクがキャンセルされた場合は終了
+            click.echo("リスナーがキャンセルされました")
+            break
+
+        except Exception as e:
+            retry_count += 1
+            click.echo(f"リスナーエラー: {e}", err=True)
+            # その他のエラーも再試行
+
+    if max_retries >= 0 and retry_count >= max_retries:
+        click.echo(f"最大リトライ回数（{max_retries}）に達しました。リスナーを終了します。", err=True)
 
 
 async def listen_main(device=None, all_devices=False, auto_route=False, debug=False):
