@@ -9,6 +9,7 @@ import os
 import aiohttp
 from asyncpushbullet import AsyncPushbullet, LiveStreamListener
 from typing import Dict, Any
+from ..utils import get_api_key
 from ..config import load_config, get_device_name
 from ..device import (
     _resolve_target_device,
@@ -21,6 +22,96 @@ from ..tmux import send_to_tmux
 from ..slash_commands import expand_slash_command, check_trigger_conditions
 from ..triggers import check_triggers, process_trigger_actions
 from ..builtin_commands import execute_builtin_command
+
+
+def _get_source_device_name(devices, source_device_iden: str) -> str:
+    """ソースデバイス名を取得"""
+    if not source_device_iden:
+        return "unknown"
+
+    source_device = next(
+        (d for d in devices if _get_device_attr(d, "iden") == source_device_iden),
+        None,
+    )
+    return _get_device_attr(source_device, "nickname") if source_device else "unknown"
+
+
+async def _process_message(
+    message: str,
+    config: Dict[str, Any],
+    device_name: str,
+    api_key: str,
+    source_device_iden: str,
+    source_device_name: str,
+    is_auto_route: bool = False,
+) -> None:
+    """メッセージを処理（トリガー、ビルトインコマンド、スラッシュコマンド、通常メッセージ）"""
+    # Check for triggers first
+    trigger_actions = check_triggers(
+        message, source_device_name or "unknown", config
+    )
+    if trigger_actions:
+        await process_trigger_actions(trigger_actions, config)
+        return
+
+    # Check if it's a slash command
+    from ..slash_commands import parse_slash_command
+
+    # First parse the command
+    command, arguments = parse_slash_command(message)
+
+    if command:
+        # Check if it's a built-in command
+        is_builtin, result, error = await execute_builtin_command(
+            command, arguments, config, api_key, source_device_iden,
+            source_device_name
+        )
+
+        if is_builtin:
+            # Built-in command handled
+            if error:
+                click.echo(f"Built-in command error: {error}", err=True)
+            return
+
+    # Not a built-in command, process as regular slash command
+    is_slash, expanded_cmd, target_session, delay = (
+        expand_slash_command(message, config, device_name)
+    )
+
+    if is_slash:
+        if expanded_cmd and check_trigger_conditions(
+            message.split()[0][1:], config
+        ):
+            # Execute the expanded command
+            final_target = target_session or device_name
+
+            if delay and delay > 0:
+                # Execute asynchronously after delay
+                asyncio.create_task(
+                    delayed_execution(
+                        delay,
+                        config,
+                        expanded_cmd,
+                        final_target,
+                        message.split()[0],
+                    )
+                )
+                click.echo(
+                    f"⏰ Timer set for {delay} seconds: {message.split()[0]}"
+                )
+            else:
+                # Execute immediately
+                await send_to_tmux(config, expanded_cmd, final_target)
+                if is_auto_route:
+                    click.echo(
+                        f"Executed slash command: {message.split()[0]} for device '{device_name}'"
+                    )
+                else:
+                    click.echo(f"Executed slash command: {message.split()[0]}")
+        # else: command was rejected or had missing args, already handled by expand_slash_command
+    else:
+        # Regular message (or fallback from undefined slash command)
+        await send_to_tmux(config, message, device_name)
 
 
 async def delayed_execution(
@@ -138,19 +229,7 @@ def _create_auto_route_handler(api_key, config):
 
             # Get source device name
             source_device_iden = push.get("source_device_iden", "")
-            source_device = next(
-                (
-                    d
-                    for d in devices
-                    if _get_device_attr(d, "iden") == source_device_iden
-                ),
-                None,
-            )
-            source_device_name = (
-                _get_device_attr(source_device, "nickname")
-                if source_device
-                else "unknown"
-            )
+            source_device_name = _get_source_device_name(devices, source_device_iden)
 
             # 同名のtmuxセッションが存在するかチェック
             from ..tmux import _check_session_exists
@@ -158,69 +237,15 @@ def _create_auto_route_handler(api_key, config):
             if await _check_session_exists(device_name):
                 message = push.get("body", "")
                 if message:
-                    # Check for triggers first
-                    trigger_actions = check_triggers(
-                        message, source_device_name or "unknown", config
+                    await _process_message(
+                        message,
+                        config,
+                        device_name,
+                        api_key,
+                        source_device_iden,
+                        source_device_name,
+                        is_auto_route=True,
                     )
-                    if trigger_actions:
-                        await process_trigger_actions(trigger_actions, config)
-                        return
-
-                    # Check if it's a slash command
-                    from ..slash_commands import parse_slash_command
-                    
-                    # First parse the command
-                    command, arguments = parse_slash_command(message)
-                    
-                    if command:
-                        # Check if it's a built-in command
-                        is_builtin, result, error = await execute_builtin_command(
-                            command, arguments, config, api_key, source_device_iden,
-                            source_device_name
-                        )
-                        
-                        if is_builtin:
-                            # Built-in command handled
-                            if error:
-                                click.echo(f"Built-in command error: {error}", err=True)
-                            return
-                    
-                    # Not a built-in command, process as regular slash command
-                    is_slash, expanded_cmd, target_session, delay = (
-                        expand_slash_command(message, config, device_name)
-                    )
-
-                    if is_slash:
-                        if expanded_cmd and check_trigger_conditions(
-                            message.split()[0][1:], config
-                        ):
-                            # Execute the expanded command
-                            final_target = target_session or device_name
-
-                            if delay and delay > 0:
-                                # Execute asynchronously after delay
-                                asyncio.create_task(
-                                    delayed_execution(
-                                        delay,
-                                        config,
-                                        expanded_cmd,
-                                        final_target,
-                                        message.split()[0],
-                                    )
-                                )
-                                click.echo(
-                                    f"⏰ Timer set for {delay} seconds: {message.split()[0]}"
-                                )
-                            else:
-                                # Execute immediately
-                                await send_to_tmux(config, expanded_cmd, final_target)
-                                click.echo(
-                                    f"Executed slash command: {message.split()[0]} for device '{device_name}'"
-                                )
-                        # else: command was rejected or had missing args, already handled by expand_slash_command
-                    else:
-                        # Regular message (or fallback from undefined slash command)
-                        await send_to_tmux(config, message, device_name)
             else:
                 click.echo(f"対応するtmuxセッション '{device_name}' が見つかりません。")
 
@@ -252,80 +277,19 @@ def _create_specific_device_handler(config, target_device_iden, device_name, api
                 try:
                     async with AsyncPushbullet(api_key) as pb:
                         devices = pb.get_devices()
-                        source_device = next(
-                            (
-                                d
-                                for d in devices
-                                if _get_device_attr(d, "iden") == source_device_iden
-                            ),
-                            None,
-                        )
-                        if source_device:
-                            source_device_name = _get_device_attr(
-                                source_device, "nickname"
-                            )
+                        source_device_name = _get_source_device_name(devices, source_device_iden)
                 except Exception:
                     pass
 
-            # Check for triggers first
-            trigger_actions = check_triggers(message, source_device_name or "unknown", config)
-            if trigger_actions:
-                await process_trigger_actions(trigger_actions, config)
-                return
-
-            # Check if it's a slash command
-            from ..slash_commands import parse_slash_command
-            
-            # First parse the command
-            command, arguments = parse_slash_command(message)
-            
-            if command:
-                # Check if it's a built-in command
-                is_builtin, result, error = await execute_builtin_command(
-                    command, arguments, config, api_key, source_device_iden,
-                    source_device_name
-                )
-                
-                if is_builtin:
-                    # Built-in command handled
-                    if error:
-                        click.echo(f"Built-in command error: {error}", err=True)
-                    return
-            
-            # Not a built-in command, process as regular slash command
-            is_slash, expanded_cmd, target_session, delay = expand_slash_command(
-                message, config, device_name
+            await _process_message(
+                message,
+                config,
+                device_name,
+                api_key,
+                source_device_iden,
+                source_device_name,
+                is_auto_route=False,
             )
-
-            if is_slash:
-                if expanded_cmd and check_trigger_conditions(
-                    message.split()[0][1:], config
-                ):
-                    # Execute the expanded command
-                    final_target = target_session or device_name
-
-                    if delay and delay > 0:
-                        # Execute asynchronously after delay
-                        asyncio.create_task(
-                            delayed_execution(
-                                delay,
-                                config,
-                                expanded_cmd,
-                                final_target,
-                                message.split()[0],
-                            )
-                        )
-                        click.echo(
-                            f"⏰ Timer set for {delay} seconds: {message.split()[0]}"
-                        )
-                    else:
-                        # Execute immediately
-                        await send_to_tmux(config, expanded_cmd, final_target)
-                        click.echo(f"Executed slash command: {message.split()[0]}")
-                # else: command was rejected or had missing args, already handled by expand_slash_command
-            else:
-                # Regular message (or fallback from undefined slash command)
-                await send_to_tmux(config, message, device_name)
 
     return on_push
 
@@ -382,9 +346,8 @@ async def _start_message_listener(api_key, on_push, debug):
 
 async def listen_main(device=None, all_devices=False, auto_route=False, debug=False):
     """メイン処理関数"""
-    api_key = os.getenv("PUSHBULLET_TOKEN")
+    api_key = get_api_key()
     if not api_key:
-        click.echo("エラー: PUSHBULLET_TOKEN環境変数が設定されていません。", err=True)
         return
 
     config = load_config()

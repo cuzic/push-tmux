@@ -10,6 +10,7 @@ from datetime import datetime
 from asyncpushbullet import AsyncPushbullet
 import questionary
 from ..device import _find_target_device, _get_device_attr
+from ..utils import get_api_key
 
 
 def _format_created_time(created):
@@ -177,7 +178,6 @@ async def _handle_batch_deletion(pb, selected_devices):
         click.echo("削除をキャンセルしました。")
 
 
-@click.command("delete-devices")
 @click.option("--name", help="削除するデバイス名")
 @click.option("--id", "device_id", help="削除するデバイスID")
 @click.option("--yes", "-y", is_flag=True, help="削除確認をスキップ")
@@ -189,11 +189,8 @@ def delete_devices(name, device_id, yes, include_inactive):
     """
 
     async def _delete_devices():
-        api_key = os.getenv("PUSHBULLET_TOKEN")
+        api_key = get_api_key()
         if not api_key:
-            click.echo(
-                "エラー: PUSHBULLET_TOKEN環境変数が設定されていません。", err=True
-            )
             return
 
         # 単一削除モード（--nameまたは--id指定時）

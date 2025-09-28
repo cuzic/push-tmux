@@ -9,6 +9,7 @@ import os
 from asyncpushbullet import AsyncPushbullet
 from ..config import get_device_name
 from ..device import _get_device_attr
+from ..utils import get_api_key
 
 
 @click.command()
@@ -19,11 +20,8 @@ def register(name):
     """
 
     async def _register():
-        api_key = os.getenv("PUSHBULLET_TOKEN")
+        api_key = get_api_key()
         if not api_key:
-            click.echo(
-                "エラー: PUSHBULLET_TOKEN環境変数が設定されていません。", err=True
-            )
             return
 
         device_name = name if name else get_device_name()

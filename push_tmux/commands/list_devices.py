@@ -8,20 +8,17 @@ import click
 import os
 from asyncpushbullet import AsyncPushbullet
 from ..device import _get_device_attr
+from ..utils import get_api_key
 
 
-@click.command("list-devices")
 def list_devices():
     """
     登録されているPushbulletデバイスの一覧を表示します。
     """
 
     async def _list_devices():
-        api_key = os.getenv("PUSHBULLET_TOKEN")
+        api_key = get_api_key()
         if not api_key:
-            click.echo(
-                "エラー: PUSHBULLET_TOKEN環境変数が設定されていません。", err=True
-            )
             return
 
         async with AsyncPushbullet(api_key) as pb:
