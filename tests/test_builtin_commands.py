@@ -50,7 +50,8 @@ class TestCaptureCommand:
                 
                 # Check the push_note call
                 call_args = mock_pb.push_note.call_args
-                assert "current pane" in call_args[0][0]  # Title
+                # Title may be "current pane" or "Captured from {tty}"
+                assert "Captured" in call_args[0][0]  # Title
                 assert "Captured content" in call_args[0][1]  # Content
 
     @pytest.mark.asyncio

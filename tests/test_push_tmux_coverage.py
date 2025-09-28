@@ -151,7 +151,7 @@ class TestSendCommand:
 
     def test_send_key_with_config_update(self, runner):
         """設定を更新してsend実行"""
-        with patch("push_tmux.commands.send_key.load_config", return_value={}):
+        with patch("push_tmux.commands.send.load_config", return_value={}):
             with patch(
                 "push_tmux.commands.send.send_to_tmux", new_callable=AsyncMock
             ) as mock_send:
