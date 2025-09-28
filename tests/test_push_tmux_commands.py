@@ -56,7 +56,8 @@ class TestDeviceCommands:
             with patch("push_tmux.commands.register.AsyncPushbullet") as MockPB:
                 mock_pb = AsyncMock()
                 mock_pb.get_devices = MagicMock(return_value=[])  # 同期メソッド
-                mock_pb.async_new_device = AsyncMock(
+                # _async_post_data is used in the workaround
+                mock_pb._async_post_data = AsyncMock(
                     return_value={"iden": "new_device_id", "nickname": "test_device"}
                 )
                 mock_pb.__aenter__ = AsyncMock(return_value=mock_pb)

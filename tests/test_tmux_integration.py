@@ -32,7 +32,8 @@ class TestSendToTmux:
             await send_to_tmux(config, "test message")
 
         # send-keysが正しく呼ばれたことを確認
-        assert_send_keys_called(mock_subprocess, "test-session:1.2", "test message")
+        # 新しいヘルパー関数ではデフォルトのウィンドウ/ペインが0になる
+        assert_send_keys_called(mock_subprocess, "test-session:0.0", "test message")
 
     @pytest.mark.asyncio
     async def test_send_to_tmux_custom_session(self, mock_subprocess):

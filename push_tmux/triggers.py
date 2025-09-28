@@ -4,8 +4,8 @@ Pattern-based trigger system for push-tmux
 """
 
 import re
-import time
 import click
+import logging
 from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta
 
@@ -101,8 +101,8 @@ class TriggerPattern:
         # Check cooldown
         cooldown = conditions.get("cooldown", 0)
         if cooldown > 0:
-            last_execution = self.cooldowns.get(trigger_name, 0)
-            if time.time() - last_execution < cooldown:
+            last_execution = self.cooldowns.get(trigger_name)
+            if last_execution and (datetime.now() - last_execution).total_seconds() < cooldown:
                 return False
 
         # Check max executions per hour
