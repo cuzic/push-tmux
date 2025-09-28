@@ -5,7 +5,7 @@ Track device-to-tty mappings for push-tmux
 
 import re
 import json
-import os
+import logging
 from typing import Dict, Optional
 from pathlib import Path
 
@@ -16,15 +16,17 @@ class DeviceTtyTracker:
     def __init__(self, cache_file: Optional[str] = None):
         """
         Initialize the tracker
-        
+
         Args:
             cache_file: Path to cache file for persistent storage
         """
+        self.logger = logging.getLogger(__name__)
+
         if cache_file is None:
             cache_dir = Path.home() / ".cache" / "push-tmux"
             cache_dir.mkdir(parents=True, exist_ok=True)
             cache_file = cache_dir / "device_tty_map.json"
-        
+
         self.cache_file = Path(cache_file)
         self.mappings: Dict[str, str] = self._load_mappings()
     
@@ -32,19 +34,21 @@ class DeviceTtyTracker:
         """Load mappings from cache file"""
         if self.cache_file.exists():
             try:
-                with open(self.cache_file, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError):
-                pass
+                content = self.cache_file.read_text(encoding='utf-8')
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Failed to parse JSON from {self.cache_file}: {e}")
+            except IOError as e:
+                self.logger.warning(f"Failed to read cache file {self.cache_file}: {e}")
         return {}
     
     def _save_mappings(self) -> None:
         """Save mappings to cache file"""
         try:
-            with open(self.cache_file, 'w') as f:
-                json.dump(self.mappings, f, indent=2)
-        except IOError:
-            pass  # Fail silently if can't save cache
+            content = json.dumps(self.mappings, indent=2)
+            self.cache_file.write_text(content, encoding='utf-8')
+        except IOError as e:
+            self.logger.warning(f"Failed to save cache to {self.cache_file}: {e}")
     
     def extract_tty_from_title(self, title: str) -> Optional[str]:
         """

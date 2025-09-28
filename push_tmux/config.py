@@ -88,4 +88,4 @@ def save_config(config):
 
 def get_device_name():
     """デバイス名を取得（環境変数またはディレクトリ名）"""
-    return os.getenv("DEVICE_NAME") or os.path.basename(os.getcwd())
+    return os.getenv("DEVICE_NAME") or Path.cwd().name

@@ -6,45 +6,87 @@ tmux integration utilities for push-tmux
 import asyncio
 import click
 import os
-from typing import Optional
+import logging
+from typing import Optional, List, Tuple
+from pathlib import Path
 from .device import _resolve_device_mapping
+
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_tmux_command(
+    args: List[str],
+    capture_output: bool = False,
+    check: bool = False,
+) -> Tuple[int, Optional[str], Optional[str]]:
+    """Helper function to run tmux commands
+
+    Args:
+        args: Command arguments (without 'tmux' prefix)
+        capture_output: Whether to capture stdout/stderr
+        check: Whether to raise exception on non-zero exit code
+
+    Returns:
+        Tuple of (returncode, stdout, stderr)
+    """
+    cmd = ["tmux"] + args
+
+    try:
+        if capture_output:
+            result = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await result.communicate()
+            returncode = result.returncode
+
+            stdout_str = stdout.decode('utf-8').strip() if stdout else None
+            stderr_str = stderr.decode('utf-8').strip() if stderr else None
+        else:
+            result = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            returncode = await result.wait()
+            stdout_str, stderr_str = None, None
+
+        if check and returncode != 0:
+            logger.error(f"tmux command failed: {' '.join(cmd)}, returncode: {returncode}")
+            if stderr_str:
+                logger.error(f"stderr: {stderr_str}")
+
+        return returncode, stdout_str, stderr_str
+
+    except FileNotFoundError:
+        logger.error("tmux command not found")
+        return -1, None, None
+    except Exception as e:
+        logger.error(f"Error running tmux command {' '.join(cmd)}: {e}")
+        return -1, None, None
 
 
 async def _check_session_exists(session_name):
     """tmuxセッションが存在するかチェック"""
-    try:
-        result = await asyncio.create_subprocess_exec(
-            "tmux",
-            "has-session",
-            "-t",
-            session_name,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        returncode = await result.wait()
-        return returncode == 0
-    except Exception:
-        return False
+    returncode, _, _ = await _run_tmux_command(
+        ["has-session", "-t", session_name],
+        capture_output=False
+    )
+    return returncode == 0
 
 
 async def _get_current_session():
     """現在のtmuxセッション名を取得"""
     tmux_env = os.getenv("TMUX")
     if tmux_env:
-        try:
-            result = await asyncio.create_subprocess_exec(
-                "tmux",
-                "display-message",
-                "-p",
-                "#{session_name}",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await result.communicate()
-            if result.returncode == 0:
-                return stdout.decode().strip()
-        except Exception:
-            pass
+        returncode, stdout, _ = await _run_tmux_command(
+            ["display-message", "-p", "#{session_name}"],
+            capture_output=True
+        )
+        if returncode == 0 and stdout:
+            return stdout
     return None
 
 
@@ -205,42 +247,26 @@ async def _try_current_session():
 
 async def _resolve_first_window(target_session):
     """最初のウィンドウを取得"""
-    try:
-        result = await asyncio.create_subprocess_exec(
-            "tmux",
-            "list-windows",
-            "-t",
-            target_session,
-            "-F",
-            "#{window_index}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await result.communicate()
-        windows = stdout.decode().strip().split("\n")
+    returncode, stdout, _ = await _run_tmux_command(
+        ["list-windows", "-t", target_session, "-F", "#{window_index}"],
+        capture_output=True
+    )
+    if returncode == 0 and stdout:
+        windows = stdout.split("\n")
         return windows[0] if windows else "0"
-    except Exception:
-        return "0"
+    return "0"
 
 
 async def _resolve_first_pane(target_session, target_window):
     """最初のペインを取得"""
-    try:
-        result = await asyncio.create_subprocess_exec(
-            "tmux",
-            "list-panes",
-            "-t",
-            f"{target_session}:{target_window}",
-            "-F",
-            "#{pane_index}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await result.communicate()
-        panes = stdout.decode().strip().split("\n")
+    returncode, stdout, _ = await _run_tmux_command(
+        ["list-panes", "-t", f"{target_session}:{target_window}", "-F", "#{pane_index}"],
+        capture_output=True
+    )
+    if returncode == 0 and stdout:
+        panes = stdout.split("\n")
         return panes[0] if panes else "0"
-    except Exception:
-        return "0"
+    return "0"
 
 
 async def _apply_mapping_overrides(
@@ -295,30 +321,21 @@ async def get_pane_tty(pane_spec: Optional[str] = None) -> Optional[str]:
     Returns:
         The tty (e.g., "pts/3") or None if error
     """
-    try:
-        # Build tmux display-message command to get pane tty
-        cmd = ["tmux", "display-message", "-p", "#{pane_tty}"]
-        
-        if pane_spec:
-            cmd.extend(["-t", pane_spec])
-        
-        result = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await result.communicate()
-        
-        if result.returncode == 0:
-            tty = stdout.decode("utf-8").strip()
-            # Normalize to just "pts/X" format
-            if tty.startswith('/dev/'):
-                tty = tty.replace('/dev/', '')
-            return tty
-        else:
-            return None
-            
-    except Exception:
+    # Build tmux display-message command to get pane tty
+    args = ["display-message", "-p", "#{pane_tty}"]
+
+    if pane_spec:
+        args.extend(["-t", pane_spec])
+
+    returncode, stdout, _ = await _run_tmux_command(args, capture_output=True)
+
+    if returncode == 0 and stdout:
+        tty = stdout
+        # Normalize to just "pts/X" format
+        if tty.startswith('/dev/'):
+            tty = tty.replace('/dev/', '')
+        return tty
+    else:
         return None
 
 

@@ -375,7 +375,7 @@ class TriggerPattern:
     def _update_execution_tracking(self, trigger_name: str):
         """Update execution tracking for cooldown and rate limiting"""
         # Update cooldown
-        self.cooldowns[trigger_name] = time.time()
+        self.cooldowns[trigger_name] = datetime.now()
 
         # Update hourly count
         current_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
