@@ -10,10 +10,15 @@ push-tmux is a CLI tool that receives Pushbullet messages and automatically send
 
 ### Core Components
 
-1. **push_tmux.py** - Main CLI application with Click-based commands
-2. **async_pushbullet.py** - Custom async Pushbullet client and WebSocket listener
-3. **builtin_commands.py** - Built-in slash commands like /capture
-4. **device_tty_tracker.py** - Persistent device-to-tty mapping for smart defaults
+1. **push_tmux/__init__.py** - Main CLI entry point with command registration
+2. **push_tmux/commands/** - Directory containing all CLI commands (device_group, start, send, listen, etc.)
+3. **push_tmux/builtin_commands.py** - Built-in slash commands like /capture
+4. **push_tmux/device_tty_tracker.py** - Persistent device-to-tty mapping for smart defaults
+5. **push_tmux/tmux.py** - tmux integration functions (send_to_tmux, capture_pane, get_pane_tty)
+6. **push_tmux/device.py** - Device management functions
+7. **push_tmux/config.py** - Configuration management
+8. **push_tmux/slash_commands.py** - Custom slash command handling
+9. **push_tmux/triggers.py** - Trigger-based message processing
 
 ### Device-Directory Mapping Strategy
 The tool uses a unique approach where each project directory can have its own Pushbullet device:
@@ -112,8 +117,10 @@ uv run python -m push_tmux --help
 push-tmux --help
 
 # Run specific commands
-uv run python -m push_tmux register
-uv run python -m push_tmux listen
+push-tmux device register
+push-tmux device list
+push-tmux start
+push-tmux send "test message"
 ```
 
 ## Tool Configuration
@@ -144,18 +151,21 @@ target_pane = "pane_index"       # or "first"
 
 ## CLI Command Structure
 
-All commands are defined in `push_tmux.py` using Click decorators:
+The CLI has a hierarchical command structure:
 
-- `register` - Register current directory as Pushbullet device
-- `list-devices` - Show all registered devices
-- `delete-devices` - Interactive multi-select device deletion (replaces old delete-device)
-- `listen` - Start WebSocket listener for incoming messages  
-- `send-key` - Test utility to send messages directly to tmux
+### Main Commands
+- `device` - Device management group
+  - `register` - Register current directory as Pushbullet device
+  - `list` - Show all registered devices
+  - `delete` - Interactive multi-select device deletion
+- `start` - Start message listener
+  - `--daemon` - Run in daemon mode
+- `send` - Send test messages to tmux
 
 ## Critical Implementation Details
 
 ### Message Filtering Logic
-The core filtering happens in the `listen` command's `on_push` handler:
+The core filtering happens in the `commands/listen.py` file's `on_push` handler:
 ```python
 # Only process 'note' type messages
 if push.get('type') != 'note':
@@ -200,9 +210,10 @@ device_tty = tracker.get_device_tty("device-name")
 ```
 
 ### Async WebSocket Handling
-The `AsyncPushbulletListener` class handles WebSocket connections and message parsing. Key methods:
-- `_handle_tickle()` - Fetches recent pushes when notified
-- `run()` - Main WebSocket event loop with reconnection logic
+The listener functionality in `commands/listen.py` uses the `asyncpushbullet` library for WebSocket connections. The implementation includes:
+- WebSocket event handling with reconnection logic
+- Message filtering by device ID
+- Integration with built-in and custom slash commands
 
 ### tmux Session Resolution
 The `send_to_tmux()` function has complex logic for determining the target:
@@ -216,18 +227,22 @@ The `send_to_tmux()` function has complex logic for determining the target:
 
 ### Test Organization
 - `tests/test_device_targeting.py` - Core message filtering logic
-- `tests/test_async_pushbullet.py` - API client functionality  
 - `tests/test_push_tmux_commands.py` - CLI command behavior
 - `tests/test_tmux_integration.py` - tmux interaction mocking
 - `tests/test_utils.py` - Utility functions (config, device naming)
 - `tests/test_builtin_commands.py` - Built-in command functionality (/capture)
 - `tests/test_device_tty_tracker.py` - Device-TTY tracking and persistence
+- `tests/test_slash_commands.py` - Custom slash command handling
+- `tests/test_triggers.py` - Trigger-based message processing
+- `tests/test_daemon.py` - Daemon mode testing
+- `tests/integration/` - Integration tests for end-to-end functionality
 
 ### Key Test Patterns
-- Mock `AsyncPushbullet` with `AsyncMock` for API calls
+- Mock `asyncpushbullet.AsyncPushbullet` with `AsyncMock` for API calls
 - Use `click.testing.CliRunner` for CLI command testing
 - Mock `asyncio.create_subprocess_exec` for tmux command testing
 - Environment variable patching with `patch.dict(os.environ)`
+- Integration tests use `pytest.mark.integration` marker
 
 ## Security Considerations
 
@@ -239,20 +254,22 @@ The `send_to_tmux()` function has complex logic for determining the target:
 ## Common Development Patterns
 
 ### Adding New CLI Commands
-1. Create async function with business logic
-2. Add Click command decorator with options
-3. Create wrapper function that calls `asyncio.run()`
-4. Add comprehensive tests in appropriate test file
+1. Create new file in `push_tmux/commands/` directory
+2. Define command with `@click.command()` decorator
+3. For async operations, create async function and call with `asyncio.run()`
+4. Register command in appropriate group (device_group.py or __init__.py)
+5. Add comprehensive tests in appropriate test file
 
 ### Extending Message Processing
-1. Modify the `on_push` handler in `listen` command
+1. Modify the `on_push` handler in `commands/listen.py`
 2. Add filtering logic before `send_to_tmux()` call
-3. Update tests in `test_device_targeting.py`
+3. Consider adding triggers in `triggers.py` for pattern-based processing
+4. Update tests in `test_device_targeting.py` and `test_triggers.py`
 
 ### tmux Integration Changes
-1. Modify `send_to_tmux()` function
+1. Modify functions in `tmux.py` (send_to_tmux, capture_pane, get_pane_tty)
 2. Update session/window/pane resolution logic
-3. Add tests with mocked subprocess calls
+3. Add tests with mocked subprocess calls in `test_tmux_integration.py`
 
 ### Adding New Built-in Commands
 1. Add handler function in `builtin_commands.py`
