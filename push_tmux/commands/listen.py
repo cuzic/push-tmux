@@ -301,6 +301,8 @@ async def _start_message_listener(api_key, on_push, debug):
     base_wait_time = 5  # 基本待機時間（秒）
     max_wait_time = 300  # 最大待機時間（5分）
 
+    click.echo("リスナーを開始します...（Ctrl+Cで終了）")
+
     while max_retries < 0 or retry_count < max_retries:
         try:
             if retry_count > 0:
@@ -314,16 +316,32 @@ async def _start_message_listener(api_key, on_push, debug):
                     if debug or retry_count > 0:
                         click.echo("WebSocketリスナーを開始しました")
 
+                    if debug:
+                        click.echo(f"[デバッグ] listener.closed: {listener.closed}")
+
                     # 接続成功時はリトライカウントをリセット
                     retry_count = 0
 
-                    while not listener.closed:
-                        push = await listener.next_push()
-                        if push:
-                            await on_push(push)
+                    try:
+                        while not listener.closed:
+                            try:
+                                push = await listener.next_push()
+                                if push:
+                                    await on_push(push)
+                            except StopAsyncIteration as sie:
+                                # next_pushからのStopAsyncIteration
+                                if debug:
+                                    click.echo(f"[デバッグ] StopAsyncIteration from next_push: {sie}")
+                                break  # 内側のループを抜ける
+                    except StopAsyncIteration as e:
+                        # 外側のStopAsyncIteration（通常は発生しない）
+                        if debug:
+                            click.echo(f"[デバッグ] Outer StopAsyncIteration: {e}")
+                        pass  # ループを抜けた後の処理へ
 
-                    # 正常に閉じられた場合
+                    # 正常に閉じられた場合（StopAsyncIterationを発生させずに終了）
                     click.echo("WebSocket接続が閉じられました")
+                    retry_count += 1  # 再接続を試行
 
         except aiohttp.ClientError as e:
             retry_count += 1
@@ -335,9 +353,17 @@ async def _start_message_listener(api_key, on_push, debug):
             click.echo("リスナーがキャンセルされました")
             break
 
+        except StopAsyncIteration as e:
+            # WebSocketのStopAsyncIterationはここでもキャッチ
+            retry_count += 1
+            error_msg = str(e) if str(e) else "Websocket closed"
+            click.echo(f"WebSocket終了: {error_msg}")
+            # 再接続を継続
+
         except Exception as e:
             retry_count += 1
-            click.echo(f"リスナーエラー: {e}", err=True)
+            error_type = type(e).__name__
+            click.echo(f"リスナーエラー ({error_type}): {e}", err=True)
             # その他のエラーも再試行
 
     if max_retries >= 0 and retry_count >= max_retries:
