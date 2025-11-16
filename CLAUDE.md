@@ -14,11 +14,14 @@ push-tmux is a CLI tool that receives Pushbullet messages and automatically send
 2. **push_tmux/commands/** - Directory containing all CLI commands (device_group, start, send, listen, etc.)
 3. **push_tmux/builtin_commands.py** - Built-in slash commands like /capture
 4. **push_tmux/device_tty_tracker.py** - Persistent device-to-tty mapping for smart defaults
-5. **push_tmux/tmux.py** - tmux integration functions (send_to_tmux, capture_pane, get_pane_tty)
+5. **push_tmux/tmux.py** - tmux integration functions (send_to_tmux, capture_pane, get_pane_tty, get_all_sessions)
 6. **push_tmux/device.py** - Device management functions
 7. **push_tmux/config.py** - Configuration management
 8. **push_tmux/slash_commands.py** - Custom slash command handling
 9. **push_tmux/triggers.py** - Trigger-based message processing
+10. **push_tmux/commands/auto_create.py** - Auto-create devices from tmux sessions
+11. **push_tmux/commands/auto_delete.py** - Auto-delete orphaned devices without tmux sessions
+12. **push_tmux/commands/auto_sync.py** - Auto-sync devices with tmux sessions (create + delete)
 
 ### Device-Directory Mapping Strategy
 The tool uses a unique approach where each project directory can have its own Pushbullet device:
@@ -157,6 +160,9 @@ The CLI has a hierarchical command structure:
 - `device` - Device management group
   - `register` - Register current directory as Pushbullet device
   - `list` - Show all registered devices
+  - `auto-sync` - Auto-sync devices with tmux sessions (create + delete)
+  - `auto-create` - Auto-create devices from existing tmux sessions
+  - `auto-delete` - Auto-delete orphaned devices without tmux sessions
   - `delete` - Interactive multi-select device deletion
 - `start` - Start message listener
   - `--daemon` - Run in daemon mode
@@ -235,6 +241,9 @@ The `send_to_tmux()` function has complex logic for determining the target:
 - `tests/test_slash_commands.py` - Custom slash command handling
 - `tests/test_triggers.py` - Trigger-based message processing
 - `tests/test_daemon.py` - Daemon mode testing
+- `tests/test_auto_create.py` - Auto-create devices from tmux sessions
+- `tests/test_auto_delete.py` - Auto-delete orphaned devices without tmux sessions
+- `tests/test_auto_sync.py` - Auto-sync devices with tmux sessions
 - `tests/integration/` - Integration tests for end-to-end functionality
 
 ### Key Test Patterns

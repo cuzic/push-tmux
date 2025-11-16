@@ -30,13 +30,17 @@ push-tmux is a tool that automatically sends messages received via Pushbullet to
 # 1. Python environment setup
 mise trust && mise install
 
-# 2. Register devices (multiple devices can be registered)
+# 2a. Create tmux sessions first
+tmux new-session -s project1 -d
+tmux new-session -s project2 -d
+
+# 2b. Auto-sync devices with tmux sessions (recommended)
+push-tmux device auto-sync  # Creates devices for all tmux sessions
+
+# Or manually register devices
 push-tmux device register  # Registers device with current directory name
 
-# 3. Create tmux sessions (with same names as registered devices)
-tmux new-session -s device-name -d  # Can create multiple
-
-# 4. Start listener (automatically handles all devices)
+# 3. Start listener (automatically handles all devices)
 push-tmux start  # Auto-routing mode is default
 ```
 
@@ -251,6 +255,19 @@ push-tmux device register --name custom-device
 
 # List devices
 push-tmux device list
+
+# Auto-sync devices with tmux sessions (recommended)
+push-tmux device auto-sync                # Sync devices with tmux sessions
+push-tmux device auto-sync --dry-run      # Preview sync changes
+
+# Auto-create devices from tmux sessions
+push-tmux device auto-create              # Create devices for unregistered tmux sessions
+push-tmux device auto-create --dry-run    # Preview what will be created
+
+# Auto-delete orphaned devices (no corresponding tmux session)
+push-tmux device auto-delete              # Delete push-tmux devices without tmux sessions
+push-tmux device auto-delete --dry-run    # Preview what will be deleted
+push-tmux device auto-delete --all        # Include non-push-tmux devices
 
 # Delete devices (interactive selection)
 push-tmux device delete
