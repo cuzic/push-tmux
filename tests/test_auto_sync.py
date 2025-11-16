@@ -12,6 +12,45 @@ from push_tmux.commands.auto_sync import auto_sync
 class TestAutoSyncCommand:
     """auto-sync command tests"""
 
+    def test_auto_sync_excludes_main(self):
+        """Test that 'main' is excluded from sync operations"""
+        runner = CliRunner()
+
+        with patch("push_tmux.commands.auto_sync.get_api_key") as mock_get_api_key:
+            mock_get_api_key.return_value = "test-api-key"
+
+            with patch(
+                "push_tmux.commands.auto_sync.get_all_sessions", new_callable=AsyncMock
+            ) as mock_get_sessions:
+                # main session exists but should be excluded
+                mock_get_sessions.return_value = ["main", "session1"]
+
+                mock_pb = AsyncMock()
+                mock_device1 = {
+                    "nickname": "session1",
+                    "iden": "id1",
+                    "manufacturer": "push-tmux",
+                }
+                mock_device2 = {
+                    "nickname": "main",
+                    "iden": "id2",
+                    "manufacturer": "push-tmux",
+                }
+                mock_pb.get_devices = Mock(return_value=[mock_device1, mock_device2])
+
+                with patch(
+                    "push_tmux.commands.auto_sync.AsyncPushbullet"
+                ) as mock_async_pb:
+                    mock_async_pb.return_value.__aenter__.return_value = mock_pb
+
+                    result = runner.invoke(auto_sync, ["--dry-run"])
+
+                    assert result.exit_code == 0
+                    assert "除外された項目 (1件)" in result.output
+                    assert "main (同期をスキップ)" in result.output
+                    # main should not appear in create or delete lists
+                    assert "tmuxセッションとデバイスは既に同期しています" in result.output
+
     def test_auto_sync_already_synced(self):
         """Test when sessions and devices are already in sync"""
         runner = CliRunner()

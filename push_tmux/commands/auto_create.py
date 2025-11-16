@@ -10,6 +10,9 @@ from ..tmux import get_all_sessions
 from ..device import _get_device_attr
 from ..utils import get_api_key
 
+# Sessions to exclude from device creation
+EXCLUDED_SESSIONS = {"main"}
+
 
 @click.command()
 @click.option(
@@ -53,9 +56,18 @@ def auto_create(dry_run):
                 for name in existing_device_names:
                     click.echo(f"  - {name}")
 
+                # Check for excluded sessions
+                excluded_found = [s for s in sessions if s in EXCLUDED_SESSIONS]
+                if excluded_found:
+                    click.echo(f"\n除外されたセッション ({len(excluded_found)}件):")
+                    for session in excluded_found:
+                        click.echo(f"  - {session} (デバイス作成をスキップ)")
+
                 # Find sessions that don't have corresponding devices
+                # Exclude certain session names (e.g., "main")
                 missing_sessions = [
-                    s for s in sessions if s not in existing_device_names
+                    s for s in sessions
+                    if s not in existing_device_names and s not in EXCLUDED_SESSIONS
                 ]
 
                 if not missing_sessions:

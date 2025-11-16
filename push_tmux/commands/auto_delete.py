@@ -10,6 +10,9 @@ from ..tmux import get_all_sessions
 from ..device import _get_device_attr
 from ..utils import get_api_key
 
+# Device names to exclude from deletion
+EXCLUDED_DEVICES = {"main"}
+
 
 @click.command()
 @click.option(
@@ -72,11 +75,23 @@ def auto_delete(dry_run, delete_all):
                     click.echo("\n対象デバイスがありません。")
                     return
 
+                # Check for excluded devices
+                excluded_found = [
+                    d for d in target_devices
+                    if _get_device_attr(d, "nickname") in EXCLUDED_DEVICES
+                ]
+                if excluded_found:
+                    click.echo(f"\n除外されたデバイス ({len(excluded_found)}件):")
+                    for device in excluded_found:
+                        click.echo(f"  - {_get_device_attr(device, 'nickname')} (削除をスキップ)")
+
                 # Find orphaned devices (devices without corresponding tmux sessions)
+                # Exclude certain device names (e.g., "main")
                 orphaned_devices = [
                     d
                     for d in target_devices
                     if _get_device_attr(d, "nickname") not in session_set
+                    and _get_device_attr(d, "nickname") not in EXCLUDED_DEVICES
                 ]
 
                 if not orphaned_devices:

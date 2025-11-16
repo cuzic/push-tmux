@@ -44,6 +44,36 @@ class TestGetAllSessions:
 class TestAutoCreateCommand:
     """auto-create command tests"""
 
+    def test_auto_create_excludes_main_session(self):
+        """Test that 'main' session is excluded from device creation"""
+        runner = CliRunner()
+
+        with patch("push_tmux.commands.auto_create.get_api_key") as mock_get_api_key:
+            mock_get_api_key.return_value = "test-api-key"
+
+            with patch(
+                "push_tmux.commands.auto_create.get_all_sessions", new_callable=AsyncMock
+            ) as mock_get_sessions:
+                mock_get_sessions.return_value = ["main", "session1", "session2"]
+
+                mock_pb = AsyncMock()
+                mock_pb.get_devices = Mock(return_value=[])
+
+                with patch(
+                    "push_tmux.commands.auto_create.AsyncPushbullet"
+                ) as mock_async_pb:
+                    mock_async_pb.return_value.__aenter__.return_value = mock_pb
+
+                    result = runner.invoke(auto_create, ["--dry-run"])
+
+                    assert result.exit_code == 0
+                    assert "除外されたセッション (1件)" in result.output
+                    assert "main (デバイス作成をスキップ)" in result.output
+                    # main should not be in missing sessions
+                    assert "未登録のセッション (2件)" in result.output
+                    assert "+ session1" in result.output or "session1" in result.output
+                    assert "+ session2" in result.output or "session2" in result.output
+
     def test_auto_create_no_sessions(self):
         """Test when no tmux sessions exist"""
         runner = CliRunner()

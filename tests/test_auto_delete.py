@@ -12,6 +12,45 @@ from push_tmux.commands.auto_delete import auto_delete
 class TestAutoDeleteCommand:
     """auto-delete command tests"""
 
+    def test_auto_delete_excludes_main_device(self):
+        """Test that 'main' device is excluded from deletion"""
+        runner = CliRunner()
+
+        with patch("push_tmux.commands.auto_delete.get_api_key") as mock_get_api_key:
+            mock_get_api_key.return_value = "test-api-key"
+
+            with patch(
+                "push_tmux.commands.auto_delete.get_all_sessions", new_callable=AsyncMock
+            ) as mock_get_sessions:
+                mock_get_sessions.return_value = []
+
+                mock_pb = AsyncMock()
+                mock_device1 = {
+                    "nickname": "main",
+                    "iden": "id1",
+                    "manufacturer": "push-tmux",
+                }
+                mock_device2 = {
+                    "nickname": "orphan",
+                    "iden": "id2",
+                    "manufacturer": "push-tmux",
+                }
+                mock_pb.get_devices = Mock(return_value=[mock_device1, mock_device2])
+
+                with patch(
+                    "push_tmux.commands.auto_delete.AsyncPushbullet"
+                ) as mock_async_pb:
+                    mock_async_pb.return_value.__aenter__.return_value = mock_pb
+
+                    result = runner.invoke(auto_delete, ["--dry-run"])
+
+                    assert result.exit_code == 0
+                    assert "除外されたデバイス (1件)" in result.output
+                    assert "main (削除をスキップ)" in result.output
+                    # main should not be in orphaned devices
+                    assert "孤立したデバイス (1件)" in result.output
+                    assert "orphan" in result.output
+
     def test_auto_delete_no_sessions(self):
         """Test when no tmux sessions exist"""
         runner = CliRunner()

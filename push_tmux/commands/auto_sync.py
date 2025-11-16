@@ -10,6 +10,9 @@ from ..tmux import get_all_sessions
 from ..device import _get_device_attr
 from ..utils import get_api_key
 
+# Session/device names to exclude from sync operations
+EXCLUDED_NAMES = {"main"}
+
 
 @click.command()
 @click.option(
@@ -64,14 +67,32 @@ def auto_sync(dry_run):
                     _get_device_attr(d, "nickname") for d in push_tmux_devices
                 }
 
+                # Check for excluded names
+                excluded_sessions = [s for s in sessions if s in EXCLUDED_NAMES]
+                excluded_devices = [
+                    d for d in push_tmux_devices
+                    if _get_device_attr(d, "nickname") in EXCLUDED_NAMES
+                ]
+                if excluded_sessions or excluded_devices:
+                    click.echo(f"\n除外された項目 ({len(set(excluded_sessions) | {_get_device_attr(d, 'nickname') for d in excluded_devices})}件):")
+                    for name in set(excluded_sessions) | {_get_device_attr(d, "nickname") for d in excluded_devices}:
+                        if name in EXCLUDED_NAMES:
+                            click.echo(f"  - {name} (同期をスキップ)")
+
                 # Find sessions that need device creation
-                missing_sessions = [s for s in sessions if s not in existing_device_names]
+                # Exclude certain session names (e.g., "main")
+                missing_sessions = [
+                    s for s in sessions
+                    if s not in existing_device_names and s not in EXCLUDED_NAMES
+                ]
 
                 # Find orphaned devices that need deletion
+                # Exclude certain device names (e.g., "main")
                 orphaned_devices = [
                     d
                     for d in push_tmux_devices
                     if _get_device_attr(d, "nickname") not in session_set
+                    and _get_device_attr(d, "nickname") not in EXCLUDED_NAMES
                 ]
 
                 # Show summary
