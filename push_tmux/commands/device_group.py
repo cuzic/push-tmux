@@ -23,6 +23,9 @@ def _register_device_commands():
     from .register import register
     from .list_devices import list_devices
     from .delete_devices import delete_devices
+    from .auto_create import auto_create
+    from .auto_delete import auto_delete
+    from .auto_sync import auto_sync
 
     # registerコマンドはすでに@click.commandデコレータ付きなのでそのまま追加
     device.add_command(register)
@@ -36,6 +39,11 @@ def _register_device_commands():
 
     # delete_devices is already decorated with options, just needs @click.command
     delete_cmd = click.command("delete", help="Pushbulletデバイスを削除します。")(delete_devices)
+
+    # auto_create, auto_delete, and auto_sync are already decorated with @click.command
+    device.add_command(auto_create)
+    device.add_command(auto_delete)
+    device.add_command(auto_sync)
 
     device.add_command(list_cmd)
     device.add_command(delete_cmd)

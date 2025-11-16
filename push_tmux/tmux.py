@@ -310,14 +310,33 @@ async def _resolve_window_pane(
     return target_window, target_pane
 
 
+async def get_all_sessions() -> List[str]:
+    """
+    Get all tmux session names
+
+    Returns:
+        List of session names, empty list if no sessions or error
+    """
+    returncode, stdout, _ = await _run_tmux_command(
+        ["list-sessions", "-F", "#{session_name}"],
+        capture_output=True
+    )
+
+    if returncode == 0 and stdout:
+        sessions = [s.strip() for s in stdout.split("\n") if s.strip()]
+        return sessions
+    else:
+        return []
+
+
 async def get_pane_tty(pane_spec: Optional[str] = None) -> Optional[str]:
     """
     Get the tty of a tmux pane
-    
+
     Args:
         pane_spec: Pane specification (e.g., "session:window.pane")
                   If None, gets current pane tty
-    
+
     Returns:
         The tty (e.g., "pts/3") or None if error
     """
